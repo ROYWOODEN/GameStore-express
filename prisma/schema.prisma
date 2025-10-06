@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model basket {
+  id_basket BigInt @unique(map: "id_basket") @default(autoincrement()) @db.UnsignedBigInt
+  id_game   BigInt @db.UnsignedBigInt
+  id_user   BigInt @db.UnsignedBigInt
+  games     games  @relation(fields: [id_game], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_1")
+  users     users  @relation(fields: [id_user], references: [id_user], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_2")
+
+  @@index([id_game], map: "id_game")
+  @@index([id_user], map: "id_user")
+}
+
+model favourites {
+  id_favourites BigInt  @unique(map: "id_favourites") @default(autoincrement()) @db.UnsignedBigInt
+  id_user       BigInt? @db.UnsignedBigInt
+  id_games      BigInt? @db.UnsignedBigInt
+  users         users?  @relation(fields: [id_user], references: [id_user], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_1")
+  games         games?  @relation(fields: [id_games], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_2")
+
+  @@index([id_games], map: "id_games")
+  @@index([id_user], map: "id_user")
+}
+
+model game_tags {
+  id      BigInt @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  id_game BigInt @db.UnsignedBigInt
+  id_tags BigInt @db.UnsignedBigInt
+  games   games  @relation(fields: [id_game], references: [id_game], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_1")
+  tags    tags   @relation(fields: [id_tags], references: [id_tags], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_2")
+
+  @@index([id_game], map: "game_tags_ibfk_1")
+  @@index([id_tags], map: "game_tags_ibfk_2")
+}
+
+model games {
+  id_game     BigInt       @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  title       String       @db.VarChar(255)
+  description String       @db.Text
+  price       Decimal      @db.Decimal(10, 2)
+  image       String       @db.Text
+  basket      basket[]
+  favourites  favourites[]
+  game_tags   game_tags[]
+}
+
+model tags {
+  id_tags   BigInt      @unique(map: "id_tags") @default(autoincrement()) @db.UnsignedBigInt
+  name      String      @unique(map: "name")
+  game_tags game_tags[]
+}
+
+model users {
+  id_user    BigInt       @unique(map: "id_user") @default(autoincrement()) @db.UnsignedBigInt
+  name       String       @db.VarChar(20)
+  login      String       @unique(map: "login") @db.VarChar(30)
+  password   String       @db.Text
+  role       users_role?  @default(user)
+  avatar     String       @db.VarChar(255)
+  basket     basket[]
+  favourites favourites[]
+}
+
+enum users_role {
+  user
+  admin
+}
