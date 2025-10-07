@@ -1,9 +1,8 @@
-// import app from "./app.js"
-const app = require('./app');
+// const app = require('./app');
+import { app } from "./app.js";
 
 const PORT = 5000;
 
 app.listen(PORT, () => {
-    console.log(`Запущен на порту ${PORT}`);
-    
-})
+  console.log(`Запущен на порту ${PORT}`);
+});
