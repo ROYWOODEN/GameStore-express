@@ -7,6 +7,10 @@ export function errorHandler(res, error) {
 
   // Проверяем по типу ошибки
   switch (error.name) {
+    case "AppError":
+      status = 500;
+      message = "AppError";
+      break;
     // Ошибка валидации данных (например Joi, Zod, Prisma)
     case "ValidationError":
       status = 400;
