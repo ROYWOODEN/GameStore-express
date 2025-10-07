@@ -1,5 +1,5 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
 
 const app = express();
 app.use(cors());
@@ -10,7 +10,12 @@ BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
+import { gameRouter } from "./modules/games/index.js";
 
+app.use("/api", gameRouter);
 
+app.get("/", (req, res) => {
+  res.send("<h1>Главная</h1>");
+});
 
-module.exports = app;
+export { app };

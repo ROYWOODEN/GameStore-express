@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  // output   = "../generated/prisma"
 }
 
 datasource db {
@@ -46,7 +45,7 @@ model games {
   title       String       @db.VarChar(255)
   description String       @db.Text
   price       Decimal      @db.Decimal(10, 2)
-  image       String       @db.Text
+  image_url   String       @db.Text
   basket      basket[]
   favourites  favourites[]
   game_tags   game_tags[]
