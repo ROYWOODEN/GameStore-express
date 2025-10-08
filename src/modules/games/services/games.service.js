@@ -1,54 +1,39 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
 export const getGames = async () => {
-  try {
-    const result = await prisma.games.findMany();
-    return result;
-  } catch (error) {
-    throw error;
-  }
+  const result = await prisma.games.findMany();
+  return result;
 };
 
 export const getGameById = async (id) => {
-  try {
-    const result = await prisma.games.findUnique({
-      where: {
-        id_game: id,
-      },
-    });
+  const result = await prisma.games.findUnique({
+    where: {
+      id_game: id,
+    },
+  });
 
-    return result;
-  } catch (error) {
-    throw error;
-  }
+  return result;
 };
 
 export const createGame = async (game) => {
-  try {
-    await prisma.games.create({
-      data: {
-        title: game.title,
-        description: game.description,
-        price: game.price,
-        image_url: game.image_url,
-      },
-    });
-  } catch (error) {
-    throw error;
-  }
+  await prisma.games.create({
+    data: {
+      title: game.title,
+      description: game.description,
+      price: game.price,
+      image_url: game.image_url,
+    },
+  });
 };
 
 export const deleteGame = async (id) => {
-  try {
-    await prisma.games.delete({
-      where: {
-        id_game: id,
-      },
-    });
-  } catch (error) {
-    throw error;
-  }
+  await prisma.games.delete({
+    where: {
+      id_game: id,
+    },
+  });
 };
 
 export const updateGame = async (id, game) => {
@@ -59,14 +44,10 @@ export const updateGame = async (id, game) => {
   if (game.price !== undefined) updated.price = game.price;
   if (game.image_url !== undefined) updated.image_url = game.image_url;
 
-  try {
-    await prisma.games.update({
-      where: {
-        id_game: id,
-      },
-      data: updated,
-    });
-  } catch (error) {
-    throw error;
-  }
+  await prisma.games.update({
+    where: {
+      id_game: id,
+    },
+    data: updated,
+  });
 };
