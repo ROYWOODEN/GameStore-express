@@ -4,9 +4,9 @@ import {
   createGame,
   deleteGame,
   updateGame,
-} from "../services/games.service.js";
-import { errorHandler } from "#src/utils/errorHadler.js";
-import { AppError } from "#src/utils/AppError.js";
+} from '../services/games.service.js';
+import { errorHandler } from '#src/utils/errorHadler.js';
+import { AppError } from '#src/utils/AppError.js';
 
 export const handleListGames = async (req, res) => {
   try {
@@ -27,7 +27,7 @@ export const handleGetGame = async (req, res) => {
     const { id } = req.params;
     const game = await getGameById(id);
 
-    if (!game) throw new AppError("Game not found", "NotFoundError");
+    if (!game) throw new AppError('Game not found', 'NotFoundError');
 
     return res.status(200).json({
       success: true,
@@ -43,7 +43,7 @@ export const handleCreateGame = async (req, res) => {
     const { ...game } = req.body;
 
     if (!game.title || !game.description || !game.price) {
-      throw new AppError("Not all data is available", "ValidationError");
+      throw new AppError('Not all data is available', 'ValidationError');
     }
 
     await createGame(game);
@@ -60,7 +60,7 @@ export const handleDeleteGame = async (req, res) => {
     const { id } = req.params;
 
     const existingGame = await getGameById(id);
-    if (!existingGame) throw new AppError("Game not found", "NotFoundError");
+    if (!existingGame) throw new AppError('Game not found', 'NotFoundError');
 
     await deleteGame(id);
     return res.status(204).json();
@@ -75,10 +75,10 @@ export const handleUpdateGame = async (req, res) => {
     const { ...game } = req.body;
 
     if (Object.keys(game).length === 0)
-      throw new AppError("No fields to update", "ValidationError");
+      throw new AppError('No fields to update', 'ValidationError');
 
     const existingGame = await getGameById(id);
-    if (!existingGame) throw new AppError("Game not fount", "NotFoundError");
+    if (!existingGame) throw new AppError('Game not fount', 'NotFoundError');
 
     await updateGame(id, game);
 

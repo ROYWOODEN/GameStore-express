@@ -1,3 +1,3 @@
-import { gameRouter } from "./routes/games.routes.js";
+import { gameRouter } from './routes/games.routes.js';
 
 export { gameRouter };
