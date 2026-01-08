@@ -2,13 +2,13 @@
 export function errorHandler(res, error) {
   console.error('❌ Error:', error.message || error);
 
-  let status = 500;
-  let message = 'Internal Server Error';
+  let status = error.status || 500;
+  let message = error.message || 'Internal Server Error';
+  let userMessage = error.userMessage || 'Произошла неизвестная ошибка';
 
   // Проверяем по типу ошибки
   switch (error.name) {
     case 'AppError':
-      status = 500;
       message = 'AppError';
       break;
     // Ошибка валидации данных (например Joi, Zod, Prisma)
@@ -66,7 +66,10 @@ export function errorHandler(res, error) {
 
   res.status(status).json({
     success: false,
-    error: message,
-    statusCode: status,
+    error: {
+      statusCode: status,
+      StatusText: message,
+      message: userMessage,
+    },
   });
 }

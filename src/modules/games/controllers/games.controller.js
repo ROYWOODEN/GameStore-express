@@ -27,7 +27,8 @@ export const handleGetGame = async (req, res) => {
     const { id } = req.params;
     const game = await getGameById(id);
 
-    if (!game) throw new AppError('Game not found', 'NotFoundError');
+    // if (!game) throw new AppError('Game not found', 'NotFoundError');
+    if (!game) throw new AppError('Game not found', 'AppError', '', 200);
 
     return res.status(200).json({
       success: true,
@@ -49,7 +50,7 @@ export const handleCreateGame = async (req, res) => {
     await createGame(game);
     return res.status(201).json({
       success: true,
-      status: 201,
+      statusCode: 201,
     });
   } catch (error) {
     errorHandler(res, error);
@@ -73,14 +74,27 @@ export const handleUpdateGame = async (req, res) => {
   try {
     const { id } = req.params;
     const { ...game } = req.body;
-
+    let updated = {};
     if (Object.keys(game).length === 0)
       throw new AppError('No fields to update', 'ValidationError');
 
     const existingGame = await getGameById(id);
     if (!existingGame) throw new AppError('Game not fount', 'NotFoundError');
 
-    await updateGame(id, game);
+    if (game.title !== undefined && game.title.trim() !== '') {
+      updated.title = game.title.trim();
+    }
+    if (game.description !== undefined && game.description.trim() !== '')
+      updated.description = game.description.trim();
+    if (game.price !== undefined && game.price !== '') updated.price = game.price;
+    if (game.image_url !== undefined && game.image_url.trim() !== '')
+      updated.image_url = game.image_url.trim();
+
+    if (Object.keys(updated).length === 0) {
+      throw new AppError('Game not fount', 'NotFoundError');
+    }
+
+    await updateGame(id, updated);
 
     return res.status(204).json();
   } catch (error) {

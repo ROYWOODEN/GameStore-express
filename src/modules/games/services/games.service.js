@@ -36,18 +36,11 @@ export const deleteGame = async (id) => {
   });
 };
 
-export const updateGame = async (id, game) => {
-  let updated = {};
-
-  if (game.title !== undefined) updated.title = game.title;
-  if (game.description !== undefined) updated.description = game.description;
-  if (game.price !== undefined) updated.price = game.price;
-  if (game.image_url !== undefined) updated.image_url = game.image_url;
-
+export const updateGame = async (id, update) => {
   await prisma.games.update({
     where: {
       id_game: id,
     },
-    data: updated,
+    data: update,
   });
 };
