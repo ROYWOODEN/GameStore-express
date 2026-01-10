@@ -7,7 +7,7 @@ import {
   handleCreateGame,
   handleDeleteGame,
   handleUpdateGame,
-} from '../controllers/games.controller.js';
+} from '#src/modules/games/controllers/games.controller.js';
 
 gameRouter.get('/games', handleListGames);
 gameRouter.get('/games/:id', handleGetGame);

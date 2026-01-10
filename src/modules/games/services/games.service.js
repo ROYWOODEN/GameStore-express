@@ -1,10 +1,26 @@
 import { PrismaClient } from '@prisma/client';
+import { formatGame, formatGameList } from '#src/mappers/game.mappers.js';
 
 const prisma = new PrismaClient();
 
 export const getGames = async () => {
-  const result = await prisma.games.findMany();
-  return result;
+  const result = await prisma.games.findMany({
+    include: {
+      game_images: true,
+      game_videos: true,
+      game_tags: {
+        include: {
+          tags: {
+            include: {
+              tag_types: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return result.map(formatGameList);
 };
 
 export const getGameById = async (id) => {
@@ -12,9 +28,22 @@ export const getGameById = async (id) => {
     where: {
       id_game: id,
     },
+    include: {
+      game_images: true,
+      game_videos: true,
+      game_tags: {
+        include: {
+          tags: {
+            include: {
+              tag_types: true,
+            },
+          },
+        },
+      },
+    },
   });
 
-  return result;
+  return formatGame(result);
 };
 
 export const createGame = async (game) => {
@@ -23,7 +52,6 @@ export const createGame = async (game) => {
       title: game.title,
       description: game.description,
       price: game.price,
-      image_url: game.image_url,
     },
   });
 };
