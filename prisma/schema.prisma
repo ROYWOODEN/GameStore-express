@@ -41,20 +41,28 @@ model game_tags {
 }
 
 model games {
-  id_game     BigInt       @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
-  title       String       @db.VarChar(255)
-  description String       @db.Text
-  price       Decimal      @db.Decimal(10, 2)
-  image_url   String       @db.Text
+  id_game     BigInt        @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  title       String        @db.VarChar(255)
+  description String        @db.Text
+  price       Decimal       @db.Decimal(10, 2)
+  created_at  DateTime      @default(now()) @db.Timestamp(0)
+  updated_at  DateTime      @default(now()) @db.Timestamp(0)
   basket      basket[]
   favourites  favourites[]
+  game_images game_images[]
   game_tags   game_tags[]
+  game_videos game_videos[]
 }
 
 model tags {
-  id_tags   BigInt      @unique(map: "id_tags") @default(autoincrement()) @db.UnsignedBigInt
-  name      String      @unique(map: "name")
-  game_tags game_tags[]
+  id_tags    BigInt      @unique(map: "id_tags") @default(autoincrement()) @db.UnsignedBigInt
+  name       String      @unique(map: "name")
+  created_at DateTime    @default(now()) @db.Timestamp(0)
+  type_id    BigInt      @default(1) @db.UnsignedBigInt
+  game_tags  game_tags[]
+  tag_types  tag_types   @relation(fields: [type_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tags_ibfk_1")
+
+  @@index([type_id], map: "type_id")
 }
 
 model users {
@@ -63,9 +71,42 @@ model users {
   login      String       @unique(map: "login") @db.VarChar(30)
   password   String       @db.Text
   role       users_role?  @default(user)
-  avatar     String       @db.VarChar(255)
+  avatar_url String       @db.Text
+  created_at DateTime     @default(now()) @db.Timestamp(0)
   basket     basket[]
   favourites favourites[]
+}
+
+model game_images {
+  id         BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  url        String   @db.Text
+  alt        String   @db.VarChar(100)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  game_id    BigInt   @db.UnsignedBigInt
+  games      games    @relation(fields: [game_id], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "game_images_ibfk_1")
+
+  @@index([game_id], map: "game_id")
+}
+
+model game_videos {
+  id         BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  url        String   @db.Text
+  title      String   @db.VarChar(255)
+  duration   Int
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  game_id    BigInt   @db.UnsignedBigInt
+  games      games    @relation(fields: [game_id], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "game_videos_ibfk_1")
+
+  @@index([game_id], map: "game_id")
+}
+
+model tag_types {
+  id         BigInt @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  name       String @db.VarChar(50)
+  color      String @db.VarChar(7)
+  icon       String @db.VarChar(50)
+  sort_order Int    @db.TinyInt
+  tags       tags[]
 }
 
 enum users_role {
