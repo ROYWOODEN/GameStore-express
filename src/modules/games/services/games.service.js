@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { formatGame, formatGameList } from '#src/mappers/game.mappers.js';
+import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mappers.js';
 
 const prisma = new PrismaClient();
 
@@ -43,7 +43,7 @@ export const getGameById = async (id) => {
     },
   });
 
-  return formatGame(result);
+  return result !== null ? formatGame(result) : null;
 };
 
 export const createGame = async (game) => {
