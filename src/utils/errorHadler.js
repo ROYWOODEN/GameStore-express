@@ -1,65 +1,55 @@
 // utils/errorHandler.js
 export function errorHandler(res, error) {
-  console.error('❌ Error:', error.message || error);
+  console.error('❌ Error:', error);
 
-  let status = error.status || 500;
-  let message = error.message || 'Internal Server Error';
+
+  let status = error.status || error.statusCode || 500;
+
+  let statusText = error.message || 'Internal Server Error';
   let userMessage = error.userMessage || 'Произошла ошибка сервера';
 
-  // Проверяем по типу ошибки
+  //  корректируем статус
   switch (error.name) {
     case 'AppError':
-      message = error.message;
-      break;
-    // Ошибка валидации данных (например Joi, Zod, Prisma)
-    case 'ValidationError':
-      status = 400;
-      message = 'Validation Error';
+      // всё уже есть
+
       break;
 
-    // Ошибка авторизации — битый или просроченный JWT токен
+    case 'ValidationError':
+      status = 400;
+      break;
+
     case 'UnauthorizedError':
     case 'JsonWebTokenError':
       status = 401;
-      message = 'Invalid or expired token';
+      statusText = 'Unauthorized';
       break;
 
-    // Нет прав доступа
     case 'ForbiddenError':
       status = 403;
-      message = 'Access denied';
+      statusText = 'Access denied';
       break;
 
-    // Не найден ресурс
     case 'NotFoundError':
       status = 404;
-      message = 'Resource not found';
+      statusText = 'Not found';
+      break;
+    case 'LIMIT_FILE_COUNT':
+      status = 413;
       break;
 
-    // Проблемы с базой данных (например Prisma)
     case 'PrismaClientKnownRequestError':
     case 'DATABASE_ERROR':
       status = 503;
-      message = 'Database error. Try again later';
-      break;
-
-    // Ошибка сети (например не достучался до внешнего API)
-    case 'FetchError':
-      status = 502;
-      message = 'Network error. Unable to connect to external service';
+      statusText = 'Database error';
+      userMessage = 'Ошибка базы данных, попробуйте позже';
       break;
 
     default:
-      // Проверка по системным кодам
-      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
-        status = 503;
-        message = 'No internet connection or service unavailable';
-      } else if (error.code === 'LIMIT_FILE_SIZE') {
+      if (error.code === 'LIMIT_FILE_SIZE') {
         status = 413;
-        message = 'Uploaded file is too large';
-      } else if (error.statusCode) {
-        status = error.statusCode;
-        message = error.message || message;
+        statusText = 'File too large';
+        userMessage = 'Файл слишком большой';
       }
       break;
   }
@@ -68,7 +58,7 @@ export function errorHandler(res, error) {
     success: false,
     error: {
       statusCode: status,
-      StatusText: message,
+      statusText,
       message: userMessage,
     },
   });

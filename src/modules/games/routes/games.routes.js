@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { asyncHandler } from '#src/middleware/error.middleware.js';
 const gameRouter = Router();
 
 import {
@@ -8,11 +9,16 @@ import {
   handleDeleteGame,
   handleUpdateGame,
 } from '#src/modules/games/controllers/games.controller.js';
+import { withUpload } from '#src/middleware/upload/with.upload.middleware.js';
 
-gameRouter.get('/games', handleListGames);
-gameRouter.get('/games/:id', handleGetGame);
-gameRouter.post('/games', handleCreateGame);
-gameRouter.delete('/games/:id', handleDeleteGame);
-gameRouter.patch('/games/:id', handleUpdateGame);
+gameRouter.get('/games', asyncHandler(handleListGames));
+gameRouter.get('/games/:id', asyncHandler(handleGetGame));
+gameRouter.post(
+  '/games',
+  withUpload({ type: 'game_images', field: 'images', maxCount: 10 }),
+  asyncHandler(handleCreateGame),
+);
+gameRouter.delete('/games/:id', asyncHandler(handleDeleteGame));
+gameRouter.patch('/games/:id', asyncHandler(handleUpdateGame));
 
 export { gameRouter };

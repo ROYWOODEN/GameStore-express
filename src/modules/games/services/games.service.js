@@ -47,12 +47,30 @@ export const getGameById = async (id) => {
 };
 
 export const createGame = async (game) => {
-  await prisma.games.create({
+  const created = await prisma.games.create({
     data: {
       title: game.title,
       description: game.description,
       price: game.price,
     },
+    select: {
+      id_game: true,
+    },
+  });
+  return created.id_game;
+};
+
+export const createGameImages = async (gameId, files, title) => {
+  if (!files?.length) return;
+
+  const data = files.map((f) => ({
+    game_id: gameId,
+    url: `/uploads/images/games/${f.filename}`,
+    alt: title,
+  }));
+
+  await prisma.game_images.createMany({
+    data,
   });
 };
 
