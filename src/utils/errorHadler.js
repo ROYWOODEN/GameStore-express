@@ -2,6 +2,7 @@
 export function errorHandler(res, error) {
   console.error('❌ Error:', error);
 
+
   let status = error.status || error.statusCode || 500;
 
   let statusText = error.message || 'Internal Server Error';
@@ -11,6 +12,7 @@ export function errorHandler(res, error) {
   switch (error.name) {
     case 'AppError':
       // всё уже есть
+
       break;
 
     case 'ValidationError':
