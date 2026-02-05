@@ -4,12 +4,12 @@ export function errorHandler(res, error) {
 
   let status = error.status || 500;
   let message = error.message || 'Internal Server Error';
-  let userMessage = error.userMessage || 'Произошла неизвестная ошибка';
+  let userMessage = error.userMessage || 'Произошла ошибка сервера';
 
   // Проверяем по типу ошибки
   switch (error.name) {
     case 'AppError':
-      message = 'AppError';
+      message = error.message;
       break;
     // Ошибка валидации данных (например Joi, Zod, Prisma)
     case 'ValidationError':

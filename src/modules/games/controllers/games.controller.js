@@ -27,7 +27,7 @@ export const handleGetGame = async (req, res) => {
     const { id } = req.params;
     const game = await getGameById(id);
 
-    if (!game) throw new AppError('Game not found', 'NotFoundError');
+    if (!game) throw new AppError('Game not found', 'NotFoundError', 'Ресурс не найден');
 
     return res.status(200).json({
       success: true,
