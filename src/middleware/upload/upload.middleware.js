@@ -15,7 +15,12 @@ export const makeUpload = (type) => {
   const cfg = FILE_TARGETS[type];
   if (!cfg) {
     // Если type неизвестный — сразу ошибка (никаких "что фронт скажет")
-    throw new AppError('Unknown upload type', 'ValidationError', 'Неизвестный тип загрузки');
+    throw new AppError({
+      debug: `Unknown upload type: ${type}`,
+      type: 'ValidationError',
+      message: 'error.games.unknown_upload_type',
+      statusCode: 400,
+    });
   }
 
   // Готовим папку

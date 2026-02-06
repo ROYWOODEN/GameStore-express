@@ -7,24 +7,34 @@ import { errorHandler } from '#src/utils/errorHadler.js';
 const mapUploadError = (err) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return new AppError(
-        'Uploaded file is too large',
-        'ValidationError',
-        'Загруженный файл слишком велик',
-        413,
-      );
+      return new AppError({
+        debug: 'File too large',
+        type: 'ValidationError',
+        message: 'error.games.file_too_large',
+        statusCode: 413,
+      });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
-      return new AppError('Too many files', 'ValidationError', 'Слишком много файлов', 400);
+      return new AppError({
+        debug: 'Too many files uploaded',
+        type: 'ValidationError',
+        message: 'error.games.too_many_files',
+        statusCode: 400,
+      });
     }
-    return new AppError(err.message, 'ValidationError', 'Ошибка загрузки файла', 400);
+    return new AppError({
+      debug: 'Unexpected upload error',
+      type: 'ValidationError',
+      message: 'error.games.unexpected_upload_error',
+      statusCode: 400,
+    });
   }
-  return new AppError(
-    err.message || 'Upload error',
-    'ValidationError',
-    'Недопустимый тип файла',
-    400,
-  );
+  return new AppError({
+    debug: err.message || 'Upload error',
+    type: 'ValidationError',
+    message: 'error.games.upload_failed',
+    statusCode: 400,
+  });
 };
 
 export const handleUploadMany = (req, res) => {
@@ -32,7 +42,12 @@ export const handleUploadMany = (req, res) => {
     const type = req.query.type;
     const cfg = FILE_TARGETS[type];
     if (!cfg)
-      throw new AppError('Unknown upload type', 'ValidationError', 'Неизвестный тип загрузки', 400);
+      throw new AppError({
+        debug: `Unknown upload type: ${type}`,
+        type: 'ValidationError',
+        message: 'error.games.unknown_upload_type',
+        statusCode: 400,
+      });
 
     const up = makeUpload(type);
 
@@ -41,12 +56,12 @@ export const handleUploadMany = (req, res) => {
         if (err) throw mapUploadError(err);
 
         if (!req.files || req.files.length === 0) {
-          throw new AppError(
-            'No files uploaded (field must be "files")',
-            'ValidationError',
-            'Файлы не были загружены',
-            400,
-          );
+          throw new AppError({
+            debug: 'No files uploaded',
+            type: 'ValidationError',
+            message: 'error.games.validation_images',
+            statusCode: 400,
+          });
         }
 
         const files = req.files.map((f) => ({
