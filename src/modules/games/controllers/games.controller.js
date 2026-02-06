@@ -27,12 +27,15 @@ export const handleGetGame = async (req, res) => {
   const { id } = req.params;
   logger.info(`GET /api/games/${id} - Get game by id`);
 
-
   const game = await getGameById(id);
 
-
   if (!game) {
-    throw new AppError('Game not found', 'NotFoundError', 'Ресурс не найден', 404);
+    throw new AppError({
+      debug: 'Game not found',
+      type: 'NotFoundError',
+      message: 'error.games.not_found',
+      statusCode: 404,
+    });
   }
 
   return res.status(200).json({
@@ -64,12 +67,20 @@ export const handleCreateGame = async (req, res) => {
         }
       });
     }
-    throw new AppError('Not all data is available', 'ValidationError', 'Не все данные указаны');
+    throw new AppError({
+      debug: 'Not all data is available',
+      type: 'ValidationError',
+      message: 'error.games.validation',
+    });
   }
 
   // Проверяем, что файлы загружены
   if (!req.files || req.files.length === 0) {
-    throw new AppError('No images uploaded', 'ValidationError', 'Изображения не загружены');
+    throw new AppError({
+      debug: 'No images uploaded',
+      type: 'ValidationError',
+      message: 'error.games.validation_images',
+    });
   }
 
   // Проверяем типы файлов
@@ -80,7 +91,12 @@ export const handleCreateGame = async (req, res) => {
     req.files.forEach((f) => {
       if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
     });
-    throw new AppError('Invalid file type', 'ValidationError', 'Недопустимый тип файла');
+    throw new AppError({
+      debug: 'Invalid file type',
+      type: 'ValidationError',
+      message: 'error.games.invalid_file_type',
+      details: { allowedTypes: cfg.mime, invalidFiles: invalidFiles.map((f) => f.originalname) },
+    });
   }
 
   const gameID = await createGame(game);
@@ -99,7 +115,12 @@ export const handleDeleteGame = async (req, res) => {
 
   const existingGame = await getGameById(id);
   if (!existingGame) {
-    throw new AppError('Game not found', 'NotFoundError', 'Игра не найдена', 404);
+    throw new AppError({
+      debug: 'Game not found',
+      type: 'NotFoundError',
+      message: 'error.games.not_found',
+      statusCode: 404,
+    });
   }
 
   await deleteGame(id);
@@ -111,26 +132,53 @@ export const handleUpdateGame = async (req, res) => {
   const { id } = req.params;
   logger.info(`PATCH /api/games/${id} - Update game`);
 
-  const { ...game } = req.body;
+  const { ...game } = req.body || {};
+
   let updated = {};
   if (Object.keys(game).length === 0) {
-    throw new AppError('No fields to update', 'ValidationError', 'Нечего обновлять', 400);
+    throw new AppError({
+      debug: 'No fields to update',
+      type: 'ValidationError',
+      message: 'error.games.no_fields_to_update',
+      statusCode: 400,
+      details: { receivedFields: Object.keys(game) },
+    });
   }
 
   const existingGame = await getGameById(id);
   if (!existingGame) {
-    throw new AppError('Game not found', 'NotFoundError', 'Игра не найдена', 404);
+    throw new AppError({
+      debug: 'Game not found',
+      type: 'NotFoundError',
+      message: 'error.games.not_found',
+      statusCode: 404,
+    });
   }
 
-  if (game.title !== undefined && game.title.trim() !== '') {
+  if (typeof game.title === 'string' && game.title.trim() !== '') {
     updated.title = game.title.trim();
   }
-  if (game.description !== undefined && game.description.trim() !== '')
+  if (typeof game.description === 'string' && game.description.trim() !== '') {
     updated.description = game.description.trim();
-  if (game.price !== undefined && game.price !== '') updated.price = game.price;
+  }
+  const price = Number(game.price);
+  if (
+    price != null &&
+    String(price).trim() !== '' &&
+    !Number.isNaN(price) &&
+    price >= 0 &&
+    Number.isFinite(price)
+  ) {
+    updated.price = price;
+  }
 
   if (Object.keys(updated).length === 0) {
-    throw new AppError('No valid fields to update', 'ValidationError', 'Нет валидных полей', 400);
+    throw new AppError({
+      debug: 'No valid fields to update',
+      type: 'ValidationError',
+      message: 'error.games.no_valid_fields_to_update',
+      statusCode: 400,
+    });
   }
 
   await updateGame(id, updated);

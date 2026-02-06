@@ -1,65 +1,82 @@
-// utils/errorHandler.js
-export function errorHandler(res, error) {
-  console.error('❌ Error:', error);
-
-
-  let status = error.status || error.statusCode || 500;
-
-  let statusText = error.message || 'Internal Server Error';
-  let userMessage = error.userMessage || 'Произошла ошибка сервера';
-
-  //  корректируем статус
-  switch (error.name) {
-    case 'AppError':
-      // всё уже есть
-
-      break;
-
-    case 'ValidationError':
-      status = 400;
-      break;
-
-    case 'UnauthorizedError':
-    case 'JsonWebTokenError':
-      status = 401;
-      statusText = 'Unauthorized';
-      break;
-
-    case 'ForbiddenError':
-      status = 403;
-      statusText = 'Access denied';
-      break;
-
-    case 'NotFoundError':
-      status = 404;
-      statusText = 'Not found';
-      break;
-    case 'LIMIT_FILE_COUNT':
-      status = 413;
-      break;
-
-    case 'PrismaClientKnownRequestError':
-    case 'DATABASE_ERROR':
-      status = 503;
-      statusText = 'Database error';
-      userMessage = 'Ошибка базы данных, попробуйте позже';
-      break;
-
+function getStatusText(status) {
+  switch (status) {
+    case 400:
+      return 'Bad Request';
+    case 401:
+      return 'Unauthorized';
+    case 403:
+      return 'Forbidden';
+    case 404:
+      return 'Not Found';
+    case 413:
+      return 'Payload Too Large';
+    case 503:
+      return 'Service Unavailable';
     default:
-      if (error.code === 'LIMIT_FILE_SIZE') {
-        status = 413;
-        statusText = 'File too large';
-        userMessage = 'Файл слишком большой';
-      }
-      break;
+      return 'Internal Server Error';
+  }
+}
+
+export function errorHandler(res, error) {
+  // ЛОГИРУЕМ ВСЕГДА
+  console.error('❌ Error:', error.debug || error.message || error);
+
+  // 1️⃣ НАША ошибка — отдаем как есть
+  if (error?.name === 'AppError') {
+    const status = error.statusCode || 500;
+
+    return res.status(status).json({
+      success: false,
+      error: {
+        statusCode: status,
+        statusText: getStatusText(status),
+        type: error.type,
+        message: error.message, // КЛЮЧ
+        details: error.details,
+      },
+    });
   }
 
-  res.status(status).json({
+  // 2️⃣ ЧУЖИЕ ошибки — приводим к нашему формату
+  let statusCode = 500;
+  let type = 'InternalError';
+  let message = 'errors.internal';
+
+  // multer
+  if (error?.code === 'LIMIT_FILE_SIZE') {
+    statusCode = 413;
+    type = 'UploadError';
+    message = 'errors.upload.file_too_large';
+  }
+
+  if (error?.name === 'LIMIT_FILE_COUNT') {
+    statusCode = 413;
+    type = 'UploadError';
+    message = 'errors.upload.too_many_files';
+  }
+
+  // jwt
+  if (error?.name === 'JsonWebTokenError' || error?.name === 'UnauthorizedError') {
+    statusCode = 401;
+    type = 'AuthError';
+    message = 'errors.auth.unauthorized';
+  }
+
+  // prisma
+  if (error?.name === 'PrismaClientKnownRequestError') {
+    statusCode = 503;
+    type = 'DbError';
+    message = 'errors.db.unavailable';
+  }
+
+  return res.status(statusCode).json({
     success: false,
     error: {
-      statusCode: status,
-      statusText,
-      message: userMessage,
+      statusCode,
+      statusText: getStatusText(statusCode),
+      type,
+      message,
+      details: null,
     },
   });
 }
