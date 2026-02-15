@@ -1,17 +1,19 @@
+import { ERROR_TYPES, ERROR_MESSAGES } from '#src/constants/httpStatuses.js';
+
 export class AppError extends Error {
   constructor({
     debug = 'Unexpected error',
-    type = 'AppError',
-    message = 'errors.internal',
-    statusCode = 500,
+    type = ERROR_TYPES.INTERNAL,
+    message = ERROR_MESSAGES.INTERNAL,
+    statusCode = null,
     details = null,
   }) {
     super(debug);
 
-    this.name = 'AppError'; // маркер, что это наша ошибка
-    this.debug = debug; // для логов
-    this.type = type; // ValidationError, AuthError и т.п.
-    this.message = message; // КЛЮЧ для фронта
+    this.name = 'AppError';
+    this.debug = debug;
+    this.type = type;
+    this.message = message;
     this.statusCode = statusCode;
     this.details = details;
   }

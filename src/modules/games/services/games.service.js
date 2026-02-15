@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '#src/core/prisma.js';
 import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mappers.js';
-
-const prisma = new PrismaClient();
 
 export const getGames = async () => {
   const result = await prisma.games.findMany({

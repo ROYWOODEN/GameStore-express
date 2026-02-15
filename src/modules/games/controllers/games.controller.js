@@ -1,3 +1,7 @@
+// Node.js modules
+import fs from 'fs';
+
+// Services
 import {
   getGames,
   getGameById,
@@ -6,17 +10,46 @@ import {
   deleteGame,
   updateGame,
 } from '../services/games.service.js';
-import { AppError } from '#src/utils/AppError.js';
-import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
-import { logger } from '#src/core/logger.js';
-import fs from 'fs';
 
-export const handleListGames = async (req, res) => {
+// Utils & Config
+import { AppError } from '#src/utils/AppError.js';
+import { logger } from '#src/core/logger.js';
+import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
+import { ERROR_MESSAGES, ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+
+import { z } from 'zod';
+
+// ============================================
+// ZOD Schemas (ONLY FIELDS VALIDATION)
+// ============================================
+
+const createGameSchema = z
+  .object({
+    title: z.string().trim().min(2, 'Название игры обязательно'),
+    description: z.string().trim().min(10, 'Описание игры должно содержать минимум 10 символов'),
+    price: z.coerce.number().finite().min(0, 'Цена не может быть отрицательной'),
+  })
+  .strict();
+
+const updateGameSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Название игры не может быть пустым'),
+    description: z.string().trim().min(1, 'Описание игры не может быть пустым'),
+    price: z.coerce.number().finite().min(0, 'Цена не может быть отрицательной'),
+  })
+  .strict()
+  .partial();
+
+// ============================================
+// CONTROLLERS
+// ============================================
+
+export const handleListGames = async (_, res) => {
   logger.info('GET /api/games - List games');
   const games = await getGames();
 
   logger.info('Games fetched', { count: games.length });
-  return res.status(200).json({
+  return res.status(HTTP_STATUS.OK).json({
     success: true,
     data: games,
     count: games.length,
@@ -32,13 +65,12 @@ export const handleGetGame = async (req, res) => {
   if (!game) {
     throw new AppError({
       debug: 'Game not found',
-      type: 'NotFoundError',
-      message: 'error.games.not_found',
-      statusCode: 404,
+      type: ERROR_TYPES.NOT_FOUND,
+      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
     });
   }
 
-  return res.status(200).json({
+  return res.status(HTTP_STATUS.OK).json({
     success: true,
     data: game,
   });
@@ -47,14 +79,9 @@ export const handleGetGame = async (req, res) => {
 export const handleCreateGame = async (req, res) => {
   logger.info('POST /api/games - Create game');
 
-  const game = {
-    title: req.body.title,
-    description: req.body.description,
-    price: Number(req.body.price),
-  };
+  const parsed = createGameSchema.safeParse(req.body);
 
-  if (!game.title || !game.description || !game.price) {
-    // если файлы уже были загружены — удаляем их, чтобы не оставлять мусор
+  if (!parsed.success) {
     if (req.files && req.files.length > 0) {
       req.files.forEach((f) => {
         try {
@@ -67,19 +94,26 @@ export const handleCreateGame = async (req, res) => {
         }
       });
     }
+
     throw new AppError({
       debug: 'Not all data is available',
-      type: 'ValidationError',
-      message: 'error.games.validation',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_VALIDATION,
+      details: parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || 'body',
+        message: i.message,
+      })),
     });
   }
+
+  const game = parsed.data;
 
   // Проверяем, что файлы загружены
   if (!req.files || req.files.length === 0) {
     throw new AppError({
       debug: 'No images uploaded',
-      type: 'ValidationError',
-      message: 'error.games.validation_images',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_VALIDATION_IMAGES,
     });
   }
 
@@ -93,8 +127,8 @@ export const handleCreateGame = async (req, res) => {
     });
     throw new AppError({
       debug: 'Invalid file type',
-      type: 'ValidationError',
-      message: 'error.games.invalid_file_type',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_INVALID_FILE_TYPE,
       details: { allowedTypes: cfg.mime, invalidFiles: invalidFiles.map((f) => f.originalname) },
     });
   }
@@ -103,9 +137,9 @@ export const handleCreateGame = async (req, res) => {
   await createGameImages(gameID, req.files, game.title);
 
   logger.success('Game created', { gameID });
-  return res.status(201).json({
+  return res.status(HTTP_STATUS.CREATED).json({
     success: true,
-    statusCode: 201,
+    statusCode: HTTP_STATUS.CREATED,
   });
 };
 
@@ -117,72 +151,57 @@ export const handleDeleteGame = async (req, res) => {
   if (!existingGame) {
     throw new AppError({
       debug: 'Game not found',
-      type: 'NotFoundError',
-      message: 'error.games.not_found',
-      statusCode: 404,
+      type: ERROR_TYPES.NOT_FOUND,
+      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
     });
   }
 
   await deleteGame(id);
   logger.success('Game deleted', { gameID: id });
-  return res.status(204).json();
+  return res.status(HTTP_STATUS.NO_CONTENT).json();
 };
 
 export const handleUpdateGame = async (req, res) => {
   const { id } = req.params;
   logger.info(`PATCH /api/games/${id} - Update game`);
 
-  const { ...game } = req.body || {};
+  const parsed = updateGameSchema.safeParse(req.body);
 
-  let updated = {};
-  if (Object.keys(game).length === 0) {
+  if (!parsed.success) {
     throw new AppError({
-      debug: 'No fields to update',
-      type: 'ValidationError',
-      message: 'error.games.no_fields_to_update',
-      statusCode: 400,
-      details: { receivedFields: Object.keys(game) },
+      debug: 'Validation failed - invalid fields',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_NO_VALID_FIELDS_TO_UPDATE,
+      details: parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || 'body',
+        message: i.message,
+      })),
     });
   }
 
+  const gameData = parsed.data;
+
+  // Проверяем, что есть хотя бы одно поле для обновления
+  if (Object.keys(gameData).length === 0) {
+    throw new AppError({
+      debug: 'No fields to update',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_NO_FIELDS_TO_UPDATE,
+    });
+  }
+
+  // Проверяем существование игры
   const existingGame = await getGameById(id);
   if (!existingGame) {
     throw new AppError({
       debug: 'Game not found',
-      type: 'NotFoundError',
-      message: 'error.games.not_found',
-      statusCode: 404,
+      type: ERROR_TYPES.NOT_FOUND,
+      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
     });
   }
 
-  if (typeof game.title === 'string' && game.title.trim() !== '') {
-    updated.title = game.title.trim();
-  }
-  if (typeof game.description === 'string' && game.description.trim() !== '') {
-    updated.description = game.description.trim();
-  }
-  const price = Number(game.price);
-  if (
-    price != null &&
-    String(price).trim() !== '' &&
-    !Number.isNaN(price) &&
-    price >= 0 &&
-    Number.isFinite(price)
-  ) {
-    updated.price = price;
-  }
+  await updateGame(id, gameData);
 
-  if (Object.keys(updated).length === 0) {
-    throw new AppError({
-      debug: 'No valid fields to update',
-      type: 'ValidationError',
-      message: 'error.games.no_valid_fields_to_update',
-      statusCode: 400,
-    });
-  }
-
-  await updateGame(id, updated);
-
-  logger.success('Game updated', { gameID: id, fields: Object.keys(updated) });
-  return res.status(204).json();
+  logger.success('Game updated', { gameID: id, fields: Object.keys(gameData) });
+  return res.status(HTTP_STATUS.NO_CONTENT).json();
 };
