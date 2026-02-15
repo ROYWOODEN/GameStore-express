@@ -4,6 +4,7 @@ import fs from 'fs';
 import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
 import { genFileName } from '#src/utils/fileName.js';
 import { AppError } from '#src/utils/AppError.js';
+import { ERROR_MESSAGES, ERROR_TYPES } from '#src/constants/httpStatuses.js';
 
 // Создаём папку, если её нет (иначе сохранение упадёт)
 const ensureDir = (dir) => {
@@ -17,9 +18,8 @@ export const makeUpload = (type) => {
     // Если type неизвестный — сразу ошибка (никаких "что фронт скажет")
     throw new AppError({
       debug: `Unknown upload type: ${type}`,
-      type: 'ValidationError',
-      message: 'error.games.unknown_upload_type',
-      statusCode: 400,
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.GAMES_UNKNOWN_UPLOAD_TYPE,
     });
   }
 

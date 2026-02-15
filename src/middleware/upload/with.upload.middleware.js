@@ -1,6 +1,5 @@
 import { makeUpload } from '#src/middleware/upload/upload.middleware.js';
 import { mapUploadError } from '#src/utils/mapUploadError.js';
-import { errorHandler } from '#src/utils/errorHadler.js';
 
 export const withUpload = ({ type, field, maxCount }) => {
   const up = makeUpload(type);
@@ -10,8 +9,7 @@ export const withUpload = ({ type, field, maxCount }) => {
   return (req, res, next) => {
     run(req, res, (err) => {
       if (err) {
-        errorHandler(res, mapUploadError(err));
-        return;
+        return next(mapUploadError(err));
       }
       next();
     });
