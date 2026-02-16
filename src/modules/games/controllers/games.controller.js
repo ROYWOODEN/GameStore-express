@@ -5,8 +5,7 @@ import fs from 'fs';
 import {
   getGames,
   getGameById,
-  createGame,
-  createGameImages,
+  createGameWithImages,
   deleteGame,
   updateGame,
 } from '../services/games.service.js';
@@ -39,6 +38,22 @@ const updateGameSchema = z
   })
   .strict()
   .partial();
+
+// FS cleanup: remove uploaded files when request fails after multer write.
+const cleanupUploadedFiles = (files, logMessage) => {
+  if (!files?.length) return;
+
+  files.forEach((f) => {
+    try {
+      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+    } catch (e) {
+      logger.warn(logMessage, {
+        file: f.path,
+        err: e,
+      });
+    }
+  });
+};
 
 // ============================================
 // CONTROLLERS
@@ -82,18 +97,7 @@ export const handleCreateGame = async (req, res) => {
   const parsed = createGameSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    if (req.files && req.files.length > 0) {
-      req.files.forEach((f) => {
-        try {
-          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-        } catch (e) {
-          logger.warn('Failed to remove uploaded file after validation error', {
-            file: f.path,
-            err: e,
-          });
-        }
-      });
-    }
+    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after validation error');
 
     throw new AppError({
       debug: 'Not all data is available',
@@ -122,9 +126,7 @@ export const handleCreateGame = async (req, res) => {
   const invalidFiles = req.files.filter((f) => !cfg.mime.includes(f.mimetype));
   if (invalidFiles.length > 0) {
     // Удаляем загруженные файлы
-    req.files.forEach((f) => {
-      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-    });
+    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after mime validation error');
     throw new AppError({
       debug: 'Invalid file type',
       type: ERROR_TYPES.VALIDATION,
@@ -133,8 +135,18 @@ export const handleCreateGame = async (req, res) => {
     });
   }
 
-  const gameID = await createGame(game);
-  await createGameImages(gameID, req.files, game.title);
+  let gameID;
+  try {
+    gameID = await createGameWithImages(game, req.files, game.title);
+  } catch (e) {
+    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after DB error');
+
+    throw new AppError({
+      debug: `Failed to create game in DB: ${e?.message || 'unknown error'}`,
+      type: ERROR_TYPES.DB,
+      message: ERROR_MESSAGES.DB_UNAVAILABLE,
+    });
+  }
 
   logger.success('Game created', { gameID });
   return res.status(HTTP_STATUS.CREATED).json({
