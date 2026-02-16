@@ -44,32 +44,34 @@ export const getGameById = async (id) => {
   return result !== null ? formatGame(result) : null;
 };
 
-export const createGame = async (game) => {
-  const created = await prisma.games.create({
-    data: {
-      title: game.title,
-      description: game.description,
-      price: game.price,
-    },
-    select: {
-      id_game: true,
-    },
+// Transaction: game and images are written atomically.
+export const createGameWithImages = async (game, files, title) => {
+  const created = await prisma.$transaction(async (tx) => {
+    const gameRow = await tx.games.create({
+      data: {
+        title: game.title,
+        description: game.description,
+        price: game.price,
+      },
+      select: {
+        id_game: true,
+      },
+    });
+
+    if (files?.length) {
+      await tx.game_images.createMany({
+        data: files.map((f) => ({
+          game_id: gameRow.id_game,
+          url: `/uploads/images/games/${f.filename}`,
+          alt: title,
+        })),
+      });
+    }
+
+    return gameRow;
   });
+
   return created.id_game;
-};
-
-export const createGameImages = async (gameId, files, title) => {
-  if (!files?.length) return;
-
-  const data = files.map((f) => ({
-    game_id: gameId,
-    url: `/uploads/images/games/${f.filename}`,
-    alt: title,
-  }));
-
-  await prisma.game_images.createMany({
-    data,
-  });
 };
 
 export const deleteGame = async (id) => {
