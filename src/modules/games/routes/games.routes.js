@@ -9,7 +9,7 @@ import {
   handleDeleteGame,
   handleUpdateGame,
 } from '#src/modules/games/controllers/games.controller.js';
-import { withUpload } from '#src/middleware/upload/with.upload.middleware.js';
+import { withUpload } from '#src/middleware/upload/with-upload.middleware.js';
 
 gamesRouter.get('/games', asyncHandler(handleListGames));
 gamesRouter.get('/games/:id', asyncHandler(handleGetGame));

@@ -9,11 +9,11 @@ import {
 } from '../services/games.service.js';
 
 // Utils & Config
-import { AppError } from '#src/utils/AppError.js';
+import { AppError } from '#src/utils/errors/app-error.js';
 import { logger } from '#src/core/logger.js';
 import { FILE_TARGETS, cleanupUploadedFiles, cleanupTargetUrls } from '#src/modules/files/index.js';
-import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
-import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
+import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
+import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 
 import { z } from 'zod';
 

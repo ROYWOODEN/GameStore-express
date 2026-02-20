@@ -1,5 +1,5 @@
 import { makeUpload } from '#src/middleware/upload/upload.middleware.js';
-import { mapUploadError } from '#src/utils/mapUploadError.js';
+import { mapUploadError } from '#src/utils/errors/map-upload-error.js';
 
 export const withUpload = ({ type, field, maxCount }) => {
   const up = makeUpload(type);

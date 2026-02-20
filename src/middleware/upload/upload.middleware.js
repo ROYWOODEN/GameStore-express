@@ -2,10 +2,10 @@
 import multer from 'multer';
 import fs from 'fs';
 import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
-import { genFileName } from '#src/utils/fileName.js';
-import { AppError } from '#src/utils/AppError.js';
-import { ERROR_TYPES } from '#src/constants/httpStatuses.js';
-import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
+import { genFileName } from '#src/utils/file-name.js';
+import { AppError } from '#src/utils/errors/app-error.js';
+import { ERROR_TYPES } from '#src/constants/http-statuses.js';
+import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 
 // Создаём папку, если её нет (иначе сохранение упадёт)
 const ensureDir = (dir) => {
