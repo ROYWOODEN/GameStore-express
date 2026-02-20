@@ -1,4 +1,5 @@
-import { ERROR_TYPES, ERROR_MESSAGES } from '#src/constants/httpStatuses.js';
+import { ERROR_TYPES } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 
 export class AppError extends Error {
   constructor({

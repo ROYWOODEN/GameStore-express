@@ -2,7 +2,8 @@ import { makeUpload } from '#src/middleware/upload/upload.middleware.js';
 import { mapUploadError } from '#src/utils/mapUploadError.js';
 import { FILE_TARGETS } from '../config/files.config.js';
 import { AppError } from '#src/utils/AppError.js';
-import { ERROR_MESSAGES, ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 export const handleUploadMany = (req, res, next) => {
   const type = req.query.type;
   const cfg = FILE_TARGETS[type];
