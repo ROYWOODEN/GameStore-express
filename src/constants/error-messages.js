@@ -5,6 +5,8 @@ export const ERROR_MESSAGES = {
   AUTH_UNAUTHORIZED: 'errors.auth.unauthorized',
   UPLOAD_FILE_TOO_LARGE: 'errors.upload.file_too_large',
   UPLOAD_TOO_MANY_FILES: 'errors.upload.too_many_files',
+  UPLOAD_UNEXPECTED_UPLOAD_ERROR: 'errors.upload.unexpected_upload_error',
+  UPLOAD_FAILED: 'errors.upload.failed',
   DB_UNAVAILABLE: 'errors.db.unavailable',
 
   // Games

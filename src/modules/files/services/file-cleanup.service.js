@@ -98,7 +98,7 @@ export const cleanupTargetUrls = (urlsInput, target, meta = {}) => {
         .split('?')[0]
         .split('#')[0];
       const normalizedUrl = cleanUrl.replace(/\\/g, '/');
-const expectedPrefix = `${cfg.urlBase}/`;
+      const expectedPrefix = `${cfg.urlBase}/`;
 
       if (!normalizedUrl.includes(expectedPrefix)) return null;
 

@@ -4,7 +4,6 @@ import path from 'path';
 import { errorHandler, asyncHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
-import { filesRouter } from './modules/files/index.js';
 
 const app = express();
 app.use(cors());
@@ -16,7 +15,6 @@ BigInt.prototype.toJSON = function () {
 };
 
 app.use('/api', gamesRouter);
-app.use('/api', filesRouter);
 
 app.get(
   '/',

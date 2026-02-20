@@ -1,5 +1,5 @@
 import { logger } from '#src/core/logger.js';
-import { errorHandler as handleError } from '#src/utils/errorHandler.js';
+import { errorHandler as handleError } from '#src/utils/errors/error-handler.js';
 
 // Обёртка которая ловит ошибки из async функций и передаёт в middleware
 export const asyncHandler = (fn) => (req, res, next) => {

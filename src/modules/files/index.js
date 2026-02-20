@@ -1,5 +1,4 @@
 import { FILE_TARGETS } from './config/files.config.js';
-import { filesRouter } from './routes/files.routes.js';
-import { cleanupUploadedFiles, cleanupTargetUrls } from './services/fileCleanup.service.js';
+import { cleanupUploadedFiles, cleanupTargetUrls } from './services/file-cleanup.service.js';
 
-export { FILE_TARGETS, filesRouter, cleanupUploadedFiles, cleanupTargetUrls };
+export { FILE_TARGETS, cleanupUploadedFiles, cleanupTargetUrls };
