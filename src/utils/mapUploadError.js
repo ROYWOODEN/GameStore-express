@@ -1,6 +1,7 @@
 import multer from 'multer';
 import { AppError } from '#src/utils/AppError.js';
-import { ERROR_MESSAGES, ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 
 export const mapUploadError = (err) => {
   if (err instanceof multer.MulterError) {

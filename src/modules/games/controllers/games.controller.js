@@ -1,10 +1,8 @@
-// Node.js modules
-import fs from 'fs';
-
 // Services
 import {
   getGames,
   getGameById,
+  getGameImages,
   createGameWithImages,
   deleteGame,
   updateGame,
@@ -13,8 +11,9 @@ import {
 // Utils & Config
 import { AppError } from '#src/utils/AppError.js';
 import { logger } from '#src/core/logger.js';
-import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
-import { ERROR_MESSAGES, ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { FILE_TARGETS, cleanupUploadedFiles, cleanupTargetUrls } from '#src/modules/files/index.js';
+import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 
 import { z } from 'zod';
 
@@ -24,36 +23,20 @@ import { z } from 'zod';
 
 const createGameSchema = z
   .object({
-    title: z.string().trim().min(2, 'Название игры обязательно'),
-    description: z.string().trim().min(10, 'Описание игры должно содержать минимум 10 символов'),
-    price: z.coerce.number().finite().min(0, 'Цена не может быть отрицательной'),
+    title: z.string().trim().min(2, 'Game title is required'),
+    description: z.string().trim().min(10, 'Game description must contain at least 10 characters'),
+    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
   })
   .strict();
 
 const updateGameSchema = z
   .object({
-    title: z.string().trim().min(1, 'Название игры не может быть пустым'),
-    description: z.string().trim().min(1, 'Описание игры не может быть пустым'),
-    price: z.coerce.number().finite().min(0, 'Цена не может быть отрицательной'),
+    title: z.string().trim().min(1, 'Game title cannot be empty'),
+    description: z.string().trim().min(1, 'Game description cannot be empty'),
+    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
   })
   .strict()
   .partial();
-
-// FS cleanup: remove uploaded files when request fails after multer write.
-const cleanupUploadedFiles = (files, logMessage) => {
-  if (!files?.length) return;
-
-  files.forEach((f) => {
-    try {
-      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
-    } catch (e) {
-      logger.warn(logMessage, {
-        file: f.path,
-        err: e,
-      });
-    }
-  });
-};
 
 // ============================================
 // CONTROLLERS
@@ -97,7 +80,10 @@ export const handleCreateGame = async (req, res) => {
   const parsed = createGameSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after validation error');
+    cleanupUploadedFiles(req.files, {
+      scope: 'games.create',
+      reason: 'validation_error',
+    });
 
     throw new AppError({
       debug: 'Not all data is available',
@@ -126,7 +112,10 @@ export const handleCreateGame = async (req, res) => {
   const invalidFiles = req.files.filter((f) => !cfg.mime.includes(f.mimetype));
   if (invalidFiles.length > 0) {
     // Удаляем загруженные файлы
-    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after mime validation error');
+    cleanupUploadedFiles(req.files, {
+      scope: 'games.create',
+      reason: 'mime_validation_error',
+    });
     throw new AppError({
       debug: 'Invalid file type',
       type: ERROR_TYPES.VALIDATION,
@@ -139,7 +128,10 @@ export const handleCreateGame = async (req, res) => {
   try {
     gameID = await createGameWithImages(game, req.files, game.title);
   } catch (e) {
-    cleanupUploadedFiles(req.files, 'Failed to remove uploaded file after DB error');
+    cleanupUploadedFiles(req.files, {
+      scope: 'games.create',
+      reason: 'db_error',
+    });
 
     throw new AppError({
       debug: `Failed to create game in DB: ${e?.message || 'unknown error'}`,
@@ -168,7 +160,19 @@ export const handleDeleteGame = async (req, res) => {
     });
   }
 
+  // Save image list before delete because DB rows are removed by cascade.
+  const images = await getGameImages(id);
   await deleteGame(id);
+
+  cleanupTargetUrls(
+    images.map((img) => img.url),
+    'game_images',
+    {
+      scope: 'games.delete',
+      gameID: id,
+    },
+  );
+
   logger.success('Game deleted', { gameID: id });
   return res.status(HTTP_STATUS.NO_CONTENT).json();
 };

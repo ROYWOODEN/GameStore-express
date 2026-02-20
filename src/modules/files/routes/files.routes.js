@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { handleUploadMany } from '../controllers/files.controller.js';
 
-const router = Router();
+export const filesRouter = Router();
 
-router.post('/upload', handleUploadMany);
-export default router;
+filesRouter.post('/upload', handleUploadMany);

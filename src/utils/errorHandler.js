@@ -1,4 +1,5 @@
-import { HTTP_STATUS, STATUS_TEXT, ERROR_TYPES, ERROR_MESSAGES } from '#src/constants/httpStatuses.js';
+import { HTTP_STATUS, STATUS_TEXT, ERROR_TYPES } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 
 const DEFAULT_APP_ERROR_STATUS_BY_TYPE = {
   [ERROR_TYPES.VALIDATION]: HTTP_STATUS.BAD_REQUEST,

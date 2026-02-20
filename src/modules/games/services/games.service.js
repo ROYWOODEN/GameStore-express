@@ -74,6 +74,16 @@ export const createGameWithImages = async (game, files, title) => {
   return created.id_game;
 };
 
+export const getGameImages = async (id) => {
+  const images = await prisma.game_images.findMany({
+    where: {
+      game_id: id,
+    },
+  });
+
+  return images;
+};
+
 export const deleteGame = async (id) => {
   await prisma.games.delete({
     where: {

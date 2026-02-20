@@ -4,7 +4,8 @@ import fs from 'fs';
 import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
 import { genFileName } from '#src/utils/fileName.js';
 import { AppError } from '#src/utils/AppError.js';
-import { ERROR_MESSAGES, ERROR_TYPES } from '#src/constants/httpStatuses.js';
+import { ERROR_TYPES } from '#src/constants/httpStatuses.js';
+import { ERROR_MESSAGES } from '#src/constants/errorMessages.js';
 
 // Создаём папку, если её нет (иначе сохранение упадёт)
 const ensureDir = (dir) => {

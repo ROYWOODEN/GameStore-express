@@ -3,8 +3,8 @@ import cors from 'cors';
 import path from 'path';
 import { errorHandler, asyncHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
-import { gameRouter } from './modules/games/index.js';
-import fileRouter from './modules/files/routes/files.routes.js';
+import { gamesRouter } from './modules/games/index.js';
+import { filesRouter } from './modules/files/index.js';
 
 const app = express();
 app.use(cors());
@@ -15,8 +15,8 @@ BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
-app.use('/api', gameRouter);
-app.use('/api', fileRouter);
+app.use('/api', gamesRouter);
+app.use('/api', filesRouter);
 
 app.get(
   '/',
