@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { errorHandler, asyncHandler } from '#src/middleware/error.middleware.js';
+import { errorHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
 
@@ -16,13 +16,10 @@ BigInt.prototype.toJSON = function () {
 
 app.use('/api', gamesRouter);
 
-app.get(
-  '/',
-  asyncHandler(async (_, res) => {
-    logger.info('GET / - Homepage request');
-    res.send('<h1>Главная</h1>');
-  }),
-);
+app.get('/', async (_, res) => {
+  logger.info('GET / - Homepage request');
+  res.send('<h1>Главная</h1>');
+});
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
