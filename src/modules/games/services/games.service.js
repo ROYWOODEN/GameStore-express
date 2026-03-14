@@ -4,7 +4,10 @@ import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mapp
 export const getGames = async () => {
   const result = await prisma.games.findMany({
     include: {
-      game_images: true,
+      game_images: {
+        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
+        take: 1,
+      },
       game_videos: true,
       game_tags: {
         include: {
@@ -24,10 +27,10 @@ export const getGames = async () => {
 export const getGameById = async (id) => {
   const result = await prisma.games.findUnique({
     where: {
-      id_game: id,
+      id: id,
     },
     include: {
-      game_images: true,
+      game_images: { orderBy: [{ sort_order: 'asc' }, { id: 'asc' }] },
       game_videos: true,
       game_tags: {
         include: {
@@ -54,16 +57,17 @@ export const createGameWithImages = async (game, files, title) => {
         price: game.price,
       },
       select: {
-        id_game: true,
+        id: true,
       },
     });
 
     if (files?.length) {
       await tx.game_images.createMany({
-        data: files.map((f) => ({
-          game_id: gameRow.id_game,
+        data: files.map((f, index) => ({
+          game_id: gameRow.id,
           url: `/uploads/images/games/${f.filename}`,
           alt: title,
+          sort_order: index,
         })),
       });
     }
@@ -71,7 +75,7 @@ export const createGameWithImages = async (game, files, title) => {
     return gameRow;
   });
 
-  return created.id_game;
+  return created.id;
 };
 
 export const getGameImages = async (id) => {
@@ -87,7 +91,7 @@ export const getGameImages = async (id) => {
 export const deleteGame = async (id) => {
   await prisma.games.delete({
     where: {
-      id_game: id,
+      id: id,
     },
   });
 };
@@ -95,7 +99,7 @@ export const deleteGame = async (id) => {
 export const updateGame = async (id, update) => {
   await prisma.games.update({
     where: {
-      id_game: id,
+      id: id,
     },
     data: update,
   });

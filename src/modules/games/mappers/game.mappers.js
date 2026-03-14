@@ -1,11 +1,11 @@
 export const formatGame = (game) => ({
-  id_game: game.id_game,
+  id: game.id,
   title: game.title,
   description: game.description,
   price: game.price,
   created_at: game.created_at,
   tags: game.game_tags.map((gt) => ({
-    id: gt.tags.id_tags,
+    id: gt.tags.id,
     name: gt.tags.name,
     type: {
       id: gt.tags.tag_types.id,
@@ -22,7 +22,7 @@ export const formatGame = (game) => ({
 });
 
 export const formatGameList = (game) => ({
-  id_game: game.id_game,
+  id: game.id,
   title: game.title,
   price: game.price,
   tags: game.game_tags.map((gt) => ({
