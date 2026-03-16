@@ -4,6 +4,7 @@ import path from 'path';
 import { errorHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
+import { authRouter } from './modules/Auth/index.js';
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,7 @@ BigInt.prototype.toJSON = function () {
 };
 
 app.use('/api', gamesRouter);
+app.use('/api', authRouter);
 
 app.get('/', async (_, res) => {
   logger.info('GET / - Homepage request');

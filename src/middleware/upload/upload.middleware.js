@@ -20,7 +20,7 @@ export const makeUpload = (type) => {
     throw new AppError({
       debug: `Unknown upload type: ${type}`,
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_UNKNOWN_UPLOAD_TYPE,
+      message: ERROR_MESSAGES.UPLOAD_UNKNOWN_TYPE,
     });
   }
 

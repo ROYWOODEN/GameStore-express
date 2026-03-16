@@ -2,6 +2,18 @@ import { HTTP_STATUS, STATUS_TEXT, ERROR_TYPES } from '#src/constants/http-statu
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 
+const normalizePrismaTarget = (target) => {
+  if (Array.isArray(target)) {
+    return target;
+  }
+
+  if (typeof target === 'string' && target.length > 0) {
+    return [target];
+  }
+
+  return [];
+};
+
 const normalizeToAppError = (error) => {
   if (error instanceof AppError) {
     return error;
@@ -17,6 +29,18 @@ const normalizeToAppError = (error) => {
   }
 
   if (error?.name === 'PrismaClientKnownRequestError') {
+    const targetFields = normalizePrismaTarget(error?.meta?.target);
+
+    if (error.code === 'P2002') {
+      return new AppError({
+        debug: error?.message || 'Unique constraint failed',
+        type: ERROR_TYPES.VALIDATION,
+        message: ERROR_MESSAGES.VALIDATION_FAILED,
+        statusCode: HTTP_STATUS.CONFLICT,
+        details: targetFields.length > 0 ? { fields: targetFields } : null,
+      });
+    }
+
     return new AppError({
       debug: error?.message || 'Database unavailable',
       type: ERROR_TYPES.DB,

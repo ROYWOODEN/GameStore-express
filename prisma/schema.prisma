@@ -44,7 +44,7 @@ model game_tags {
 
 model games {
   id           BigInt        @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
-  title        String        @db.VarChar(255)
+  title        String        @unique(map: "title") @db.VarChar(255)
   description  String        @db.Text
   price        Decimal       @db.Decimal(10, 2)
   release_date DateTime?     @db.Date
@@ -71,7 +71,7 @@ model tags {
 model users {
   id             BigInt           @unique(map: "id_user") @default(autoincrement()) @db.UnsignedBigInt
   name           String           @db.VarChar(20)
-  email          String           @db.VarChar(255)
+  email          String           @unique(map: "email") @db.VarChar(255)
   password_hash  String?          @db.Text
   role_id        BigInt           @default(2) @db.UnsignedBigInt
   avatar_url     String?          @db.Text
