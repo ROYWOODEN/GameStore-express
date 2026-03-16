@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 // Services
 import {
   getGames,
@@ -16,6 +17,18 @@ import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 
 import { z } from 'zod';
+
+const normalizePrismaTarget = (target) => {
+  if (Array.isArray(target)) {
+    return target;
+  }
+
+  if (typeof target === 'string' && target.length > 0) {
+    return [target];
+  }
+
+  return [];
+};
 
 // ============================================
 // ZOD Schemas (ONLY FIELDS VALIDATION)
@@ -50,7 +63,9 @@ export const handleListGames = async (_, res) => {
   return res.status(HTTP_STATUS.OK).json({
     success: true,
     data: games,
-    count: games.length,
+    meta: {
+      count: games.length,
+    },
   });
 };
 
@@ -64,7 +79,8 @@ export const handleGetGame = async (req, res) => {
     throw new AppError({
       debug: 'Game not found',
       type: ERROR_TYPES.NOT_FOUND,
-      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
+      message: ERROR_MESSAGES.NOT_FOUND,
+      details: { resource: 'game' },
     });
   }
 
@@ -88,7 +104,7 @@ export const handleCreateGame = async (req, res) => {
     throw new AppError({
       debug: 'Not all data is available',
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_VALIDATION,
+      message: ERROR_MESSAGES.VALIDATION_FAILED,
       details: parsed.error.issues.map((i) => ({
         field: i.path.join('.') || 'body',
         message: i.message,
@@ -103,7 +119,8 @@ export const handleCreateGame = async (req, res) => {
     throw new AppError({
       debug: 'No images uploaded',
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_VALIDATION_IMAGES,
+      message: ERROR_MESSAGES.FILES_REQUIRED,
+      details: { resource: 'game', field: 'images' },
     });
   }
 
@@ -119,22 +136,41 @@ export const handleCreateGame = async (req, res) => {
     throw new AppError({
       debug: 'Invalid file type',
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_INVALID_FILE_TYPE,
-      details: { allowedTypes: cfg.mime, invalidFiles: invalidFiles.map((f) => f.originalname) },
+      message: ERROR_MESSAGES.INVALID_FILE_TYPE,
+      details: {
+        resource: 'game',
+        field: 'images',
+        allowedTypes: cfg.mime,
+        invalidFiles: invalidFiles.map((f) => f.originalname),
+      },
     });
   }
 
   let gameID;
   try {
     gameID = await createGameWithImages(game, req.files, game.title);
-  } catch (e) {
+  } catch (error) {
     cleanupUploadedFiles(req.files, {
       scope: 'games.create',
       reason: 'db_error',
     });
 
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const targetFields = normalizePrismaTarget(error.meta?.target);
+
+      if (targetFields.includes('title')) {
+        throw new AppError({
+          debug: error.message || 'Game title already exists',
+          type: ERROR_TYPES.VALIDATION,
+          message: ERROR_MESSAGES.GAME_TITLE_TAKEN,
+          statusCode: HTTP_STATUS.CONFLICT,
+          details: { fields: ['title'] },
+        });
+      }
+    }
+
     throw new AppError({
-      debug: `Failed to create game in DB: ${e?.message || 'unknown error'}`,
+      debug: `Failed to create game in DB: ${error?.message || 'unknown error'}`,
       type: ERROR_TYPES.DB,
       message: ERROR_MESSAGES.DB_UNAVAILABLE,
     });
@@ -143,7 +179,6 @@ export const handleCreateGame = async (req, res) => {
   logger.success('Game created', { gameID });
   return res.status(HTTP_STATUS.CREATED).json({
     success: true,
-    statusCode: HTTP_STATUS.CREATED,
   });
 };
 
@@ -156,7 +191,8 @@ export const handleDeleteGame = async (req, res) => {
     throw new AppError({
       debug: 'Game not found',
       type: ERROR_TYPES.NOT_FOUND,
-      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
+      message: ERROR_MESSAGES.NOT_FOUND,
+      details: { resource: 'game' },
     });
   }
 
@@ -187,7 +223,7 @@ export const handleUpdateGame = async (req, res) => {
     throw new AppError({
       debug: 'Validation failed - invalid fields',
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_NO_VALID_FIELDS_TO_UPDATE,
+      message: ERROR_MESSAGES.NO_VALID_FIELDS_TO_UPDATE,
       details: parsed.error.issues.map((i) => ({
         field: i.path.join('.') || 'body',
         message: i.message,
@@ -202,7 +238,8 @@ export const handleUpdateGame = async (req, res) => {
     throw new AppError({
       debug: 'No fields to update',
       type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.GAMES_NO_FIELDS_TO_UPDATE,
+      message: ERROR_MESSAGES.NO_FIELDS_TO_UPDATE,
+      details: { resource: 'game' },
     });
   }
 
@@ -212,11 +249,30 @@ export const handleUpdateGame = async (req, res) => {
     throw new AppError({
       debug: 'Game not found',
       type: ERROR_TYPES.NOT_FOUND,
-      message: ERROR_MESSAGES.GAMES_NOT_FOUND,
+      message: ERROR_MESSAGES.NOT_FOUND,
+      details: { resource: 'game' },
     });
   }
 
-  await updateGame(id, gameData);
+  try {
+    await updateGame(id, gameData);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const targetFields = normalizePrismaTarget(error.meta?.target);
+
+      if (targetFields.includes('title')) {
+        throw new AppError({
+          debug: error.message || 'Game title already exists',
+          type: ERROR_TYPES.VALIDATION,
+          message: ERROR_MESSAGES.GAME_TITLE_TAKEN,
+          statusCode: HTTP_STATUS.CONFLICT,
+          details: { fields: ['title'] },
+        });
+      }
+    }
+
+    throw error;
+  }
 
   logger.success('Game updated', { gameID: id, fields: Object.keys(gameData) });
   return res.status(HTTP_STATUS.NO_CONTENT).json();
