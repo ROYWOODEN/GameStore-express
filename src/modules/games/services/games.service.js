@@ -1,106 +1,208 @@
-import { prisma } from '#src/core/prisma.js';
+import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
+import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
+import { FILE_TARGETS, cleanupTargetUrls, cleanupUploadedFiles } from '#src/modules/files/index.js';
 import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mappers.js';
+import { AppError } from '#src/utils/errors/app-error.js';
+import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
+import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import {
+  createGameWithImagesRecord,
+  deleteGameById,
+  findGameById,
+  findGameImagesByGameId,
+  findManyGames,
+  updateGameById,
+} from '../repositories/games.repository.js';
 
-export const getGames = async () => {
-  const result = await prisma.games.findMany({
-    include: {
-      game_images: {
-        orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
-        take: 1,
-      },
-      game_videos: true,
-      game_tags: {
-        include: {
-          tags: {
-            include: {
-              tag_types: true,
-            },
-          },
-        },
-      },
-    },
+const createGameSchema = z
+  .object({
+    title: z.string().trim().min(2, 'Game title is required'),
+    description: z.string().trim().min(10, 'Game description must contain at least 10 characters'),
+    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
+  })
+  .strict();
+
+const updateGameSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Game title cannot be empty'),
+    description: z.string().trim().min(1, 'Game description cannot be empty'),
+    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
+  })
+  .strict()
+  .partial();
+
+const buildGameNotFoundError = () =>
+  new AppError({
+    debug: 'Game not found',
+    type: ERROR_TYPES.NOT_FOUND,
+    message: ERROR_MESSAGES.NOT_FOUND,
+    details: { resource: 'game' },
   });
 
-  return result.map(formatGameList);
-};
+const throwTitleConflictIfNeeded = (error) => {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return;
+  }
 
-export const getGameById = async (id) => {
-  const result = await prisma.games.findUnique({
-    where: {
-      id: id,
-    },
-    include: {
-      game_images: { orderBy: [{ sort_order: 'asc' }, { id: 'asc' }] },
-      game_videos: true,
-      game_tags: {
-        include: {
-          tags: {
-            include: {
-              tag_types: true,
-            },
-          },
-        },
-      },
-    },
+  const targetFields = getPrismaTargetFields(error.meta?.target);
+
+  if (!targetFields.includes('title')) {
+    return;
+  }
+
+  throw new AppError({
+    debug: error.message || 'Game title already exists',
+    type: ERROR_TYPES.VALIDATION,
+    message: ERROR_MESSAGES.GAME_TITLE_TAKEN,
+    statusCode: HTTP_STATUS.CONFLICT,
+    details: { fields: ['title'] },
   });
-
-  return result !== null ? formatGame(result) : null;
 };
 
-// Transaction: game and images are written atomically.
-export const createGameWithImages = async (game, files, title) => {
-  const created = await prisma.$transaction(async (tx) => {
-    const gameRow = await tx.games.create({
-      data: {
-        title: game.title,
-        description: game.description,
-        price: game.price,
-      },
-      select: {
-        id: true,
-      },
+const validateCreateFiles = (files) => {
+  if (!files || files.length === 0) {
+    throw new AppError({
+      debug: 'No images uploaded',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.FILES_REQUIRED,
+      details: { resource: 'game', field: 'images' },
+    });
+  }
+
+  const cfg = FILE_TARGETS.game_images;
+  const invalidFiles = files.filter((file) => !cfg.mime.includes(file.mimetype));
+
+  if (invalidFiles.length > 0) {
+    cleanupUploadedFiles(files, {
+      scope: 'games.create',
+      reason: 'mime_validation_error',
     });
 
-    if (files?.length) {
-      await tx.game_images.createMany({
-        data: files.map((f, index) => ({
-          game_id: gameRow.id,
-          url: `/uploads/images/games/${f.filename}`,
-          alt: title,
-          sort_order: index,
-        })),
-      });
-    }
-
-    return gameRow;
-  });
-
-  return created.id;
+    throw new AppError({
+      debug: 'Invalid file type',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.INVALID_FILE_TYPE,
+      details: {
+        resource: 'game',
+        field: 'images',
+        allowedTypes: cfg.mime,
+        invalidFiles: invalidFiles.map((file) => file.originalname),
+      },
+    });
+  }
 };
 
-export const getGameImages = async (id) => {
-  const images = await prisma.game_images.findMany({
-    where: {
-      game_id: id,
-    },
-  });
-
-  return images;
+export const listGames = async () => {
+  const games = await findManyGames();
+  return games.map(formatGameList);
 };
 
-export const deleteGame = async (id) => {
-  await prisma.games.delete({
-    where: {
-      id: id,
-    },
-  });
+export const getGame = async (id) => {
+  const game = await findGameById(id);
+
+  if (!game) {
+    throw buildGameNotFoundError();
+  }
+
+  return formatGame(game);
 };
 
-export const updateGame = async (id, update) => {
-  await prisma.games.update({
-    where: {
-      id: id,
+export const createGame = async ({ body, files }) => {
+  const parsed = createGameSchema.safeParse(body);
+
+  if (!parsed.success) {
+    cleanupUploadedFiles(files, {
+      scope: 'games.create',
+      reason: 'validation_error',
+    });
+
+    throw new AppError({
+      debug: 'Not all data is available',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.VALIDATION_FAILED,
+      details: mapZodIssues(parsed.error.issues),
+    });
+  }
+
+  validateCreateFiles(files);
+
+  try {
+    return await createGameWithImagesRecord(parsed.data, files);
+  } catch (error) {
+    cleanupUploadedFiles(files, {
+      scope: 'games.create',
+      reason: 'db_error',
+    });
+
+    throwTitleConflictIfNeeded(error);
+
+    throw new AppError({
+      debug: `Failed to create game in DB: ${error?.message || 'unknown error'}`,
+      type: ERROR_TYPES.DB,
+      message: ERROR_MESSAGES.DB_UNAVAILABLE,
+    });
+  }
+};
+
+export const removeGame = async (id) => {
+  const game = await findGameById(id);
+
+  if (!game) {
+    throw buildGameNotFoundError();
+  }
+
+  const images = await findGameImagesByGameId(id);
+  await deleteGameById(id);
+
+  cleanupTargetUrls(
+    images.map((image) => image.url),
+    'game_images',
+    {
+      scope: 'games.delete',
+      gameID: id,
     },
-    data: update,
-  });
+  );
+
+  return game;
+};
+
+export const patchGame = async (id, body) => {
+  const parsed = updateGameSchema.safeParse(body);
+
+  if (!parsed.success) {
+    throw new AppError({
+      debug: 'Validation failed - invalid fields',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.NO_VALID_FIELDS_TO_UPDATE,
+      details: mapZodIssues(parsed.error.issues),
+    });
+  }
+
+  const gameData = parsed.data;
+
+  if (Object.keys(gameData).length === 0) {
+    throw new AppError({
+      debug: 'No fields to update',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.NO_FIELDS_TO_UPDATE,
+      details: { resource: 'game' },
+    });
+  }
+
+  const game = await findGameById(id);
+
+  if (!game) {
+    throw buildGameNotFoundError();
+  }
+
+  try {
+    await updateGameById(id, gameData);
+  } catch (error) {
+    throwTitleConflictIfNeeded(error);
+    throw error;
+  }
+
+  return gameData;
 };
