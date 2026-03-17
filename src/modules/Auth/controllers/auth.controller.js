@@ -2,12 +2,30 @@ import { HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { logger } from '#src/core/logger.js';
 import { registerUser } from '../services/auth.services.js';
 
+const buildRefreshCookieOptions = (expiresAt) => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/api/auth',
+  expires: expiresAt,
+});
+
 export const register = async (req, res) => {
   logger.info('POST /api/auth/register - Register new user');
 
-  const result = await registerUser(req.body);
+  const result = await registerUser({
+    body: req.body,
+    userAgent: req.get('user-agent'),
+    ip: req.ip,
+  });
 
   logger.success('The user was successfully created');
+
+  res.cookie(
+    'refreshToken',
+    result.refreshToken,
+    buildRefreshCookieOptions(result.refreshTokenExpiresAt),
+  );
 
   return res.status(HTTP_STATUS.CREATED).json({
     success: true,
