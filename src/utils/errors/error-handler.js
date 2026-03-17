@@ -1,18 +1,7 @@
 import { HTTP_STATUS, STATUS_TEXT, ERROR_TYPES } from '#src/constants/http-statuses.js';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { AppError } from '#src/utils/errors/app-error.js';
-
-const normalizePrismaTarget = (target) => {
-  if (Array.isArray(target)) {
-    return target;
-  }
-
-  if (typeof target === 'string' && target.length > 0) {
-    return [target];
-  }
-
-  return [];
-};
+import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 
 const normalizeToAppError = (error) => {
   if (error instanceof AppError) {
@@ -29,7 +18,7 @@ const normalizeToAppError = (error) => {
   }
 
   if (error?.name === 'PrismaClientKnownRequestError') {
-    const targetFields = normalizePrismaTarget(error?.meta?.target);
+    const targetFields = getPrismaTargetFields(error?.meta?.target);
 
     if (error.code === 'P2002') {
       return new AppError({
