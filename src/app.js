@@ -5,9 +5,16 @@ import { errorHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
 import { authRouter } from './modules/Auth/index.js';
+import cookieParser from 'cookie-parser';
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  }),
+);
+app.use(cookieParser());
 app.use(express.json());
 
 // Костыль для BigInt - один раз и навсегда

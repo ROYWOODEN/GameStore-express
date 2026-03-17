@@ -1,7 +1,6 @@
 import { prisma } from '#src/core/prisma.js';
-
-export const createUserRecord = async ({ name, email, passwordHash }) => {
-  return prisma.users.create({
+export const createUserRecord = async ({ name, email, passwordHash }, db = prisma) => {
+  return db.users.create({
     data: {
       name,
       email,
@@ -17,6 +16,36 @@ export const createUserRecord = async ({ name, email, passwordHash }) => {
           name: true,
         },
       },
+    },
+  });
+};
+
+export const createUserSessionRecord = async (
+  { userId, refreshTokenHash, userAgent, ip, expiresAt },
+  db = prisma,
+) => {
+  return db.user_sessions.create({
+    data: {
+      user_id: userId,
+      refresh_token_hash: refreshTokenHash,
+      user_agent: userAgent ?? null,
+      ip: ip ?? null,
+      expires_at: expiresAt,
+    },
+  });
+};
+
+export const updateUserSessionRecord = async (
+  { sessionId, refreshTokenHash, expiresAt },
+  db = prisma,
+) => {
+  return db.user_sessions.update({
+    where: {
+      id: sessionId,
+    },
+    data: {
+      refresh_token_hash: refreshTokenHash,
+      expires_at: expiresAt,
     },
   });
 };
