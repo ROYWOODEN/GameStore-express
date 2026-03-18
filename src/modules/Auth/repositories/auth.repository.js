@@ -1,4 +1,5 @@
 import { prisma } from '#src/core/prisma.js';
+
 export const createUserRecord = async ({ name, email, passwordHash }, db = prisma) => {
   return db.users.create({
     data: {

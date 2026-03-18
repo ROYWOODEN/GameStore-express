@@ -1,3 +1,6 @@
+import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
+import { ERROR_TYPES } from '#src/constants/http-statuses.js';
+import { AppError } from '#src/utils/errors/app-error.js';
 import jwt from 'jsonwebtoken';
 
 export const signAccessToken = ({ userId, role }) =>
@@ -26,7 +29,11 @@ export const getTokenExpiresAt = (token) => {
   const payload = jwt.decode(token);
 
   if (!payload || typeof payload === 'string' || typeof payload.exp !== 'number') {
-    throw new Error('Token expiration is missing');
+    throw new AppError({
+      debug: 'Failed to read expiration from signed token',
+      type: ERROR_TYPES.INTERNAL,
+      message: ERROR_MESSAGES.INTERNAL,
+    });
   }
 
   return new Date(payload.exp * 1000);
