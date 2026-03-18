@@ -5,6 +5,10 @@ import { logger } from '#src/core/logger.js';
 const PORT = process.env.PORT || 5000;
 let server = null;
 
+const reset = '\x1b[0m';
+const yellow = '\x1b[33m';
+const blue = '\x1b[36m';
+
 const shutdown = async (signal) => {
   logger.warn(`${signal} received, shutting down`);
 
@@ -22,7 +26,7 @@ const start = async () => {
     logger.success('Database connected');
 
     server = app.listen(PORT, () => {
-      logger.success(`Server running on port ${PORT}`);
+      logger.success(`Server running on port ${blue}http://localhost:${yellow}${PORT}${reset}`);
     });
   } catch (err) {
     logger.error('Startup failed: database unavailable', err);
