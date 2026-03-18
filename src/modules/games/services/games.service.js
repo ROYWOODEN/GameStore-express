@@ -6,7 +6,6 @@ import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
 import { Prisma } from '@prisma/client';
-import { z } from 'zod';
 import {
   createGameWithImagesRecord,
   deleteGameById,
@@ -15,23 +14,7 @@ import {
   findManyGames,
   updateGameById,
 } from '../repositories/games.repository.js';
-
-const createGameSchema = z
-  .object({
-    title: z.string().trim().min(2, 'Game title is required'),
-    description: z.string().trim().min(10, 'Game description must contain at least 10 characters'),
-    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
-  })
-  .strict();
-
-const updateGameSchema = z
-  .object({
-    title: z.string().trim().min(1, 'Game title cannot be empty'),
-    description: z.string().trim().min(1, 'Game description cannot be empty'),
-    price: z.coerce.number().finite().min(0, 'Price cannot be negative'),
-  })
-  .strict()
-  .partial();
+import { createGameSchema, updateGameSchema } from '../validators/games.schemas.js';
 
 const buildGameNotFoundError = () =>
   new AppError({

@@ -1,14 +1,7 @@
 import { HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { logger } from '#src/core/logger.js';
 import { registerUser } from '../services/auth.services.js';
-
-const buildRefreshCookieOptions = (expiresAt) => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-  path: '/api/auth',
-  expires: expiresAt,
-});
+import { getRefreshCookieOptions } from '../utils/refresh-cookie.js';
 
 export const register = async (req, res) => {
   logger.info('POST /api/auth/register - Register new user');
@@ -24,7 +17,7 @@ export const register = async (req, res) => {
   res.cookie(
     'refreshToken',
     result.refreshToken,
-    buildRefreshCookieOptions(result.refreshTokenExpiresAt),
+    getRefreshCookieOptions(result.refreshTokenExpiresAt),
   );
 
   return res.status(HTTP_STATUS.CREATED).json({
