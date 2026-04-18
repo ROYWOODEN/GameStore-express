@@ -5,7 +5,6 @@ const GAME_LIST_INCLUDE = {
     orderBy: [{ sort_order: 'asc' }, { id: 'asc' }],
     take: 1,
   },
-  game_videos: true,
   game_tags: {
     include: {
       tags: {

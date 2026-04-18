@@ -3,7 +3,13 @@ export const ERROR_MESSAGES = {
   // Common
   INTERNAL: 'errors.internal',
   NOT_FOUND: 'errors.common.not_found',
-  AUTH_UNAUTHORIZED: 'errors.auth.unauthorized',
+
+  AUTH_UNAUTHORIZED: 'errors.auth.unauthorized', // Нет токена / вообще левый
+  AUTH_EXPIRED: 'errors.auth.expired', // Access протух (сигнал для рефреша)
+  AUTH_REFRESH_FAILED: 'errors.auth.refresh_failed', // Когда даже рефреш не помог
+  AUTH_ALREADY_AUTHORIZED: 'errors.auth.already_authorized',
+  AUTH_INVALID_CREDENTIALS: 'errors.auth.invalid_credentials',
+
   AUTH_VALIDATION: 'errors.auth.validation',
   AUTH_EMAIL_TAKEN: 'errors.auth.email_taken',
   GAME_TITLE_TAKEN: 'errors.games.title_taken',

@@ -29,6 +29,7 @@ export const STATUS_TEXT = {
 export const ERROR_TYPES = {
   VALIDATION: 'ValidationError',
   AUTH: 'AuthError',
+  AUTH_EXPIRED: 'AuthTokenExpired',
   UPLOAD: 'UploadError',
   DB: 'DbError',
   INTERNAL: 'InternalError',

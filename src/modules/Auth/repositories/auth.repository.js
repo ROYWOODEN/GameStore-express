@@ -50,3 +50,21 @@ export const updateUserSessionRecord = async (
     },
   });
 };
+
+export const loginUserRecord = async ({ email }) => {
+  return prisma.users.findUnique({
+    where: {
+      email,
+    },
+    omit: {
+      role_id: true,
+    },
+    include: {
+      roles: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+};
