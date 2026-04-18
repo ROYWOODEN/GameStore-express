@@ -3,11 +3,10 @@ import { ERROR_TYPES } from '#src/constants/http-statuses.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import jwt from 'jsonwebtoken';
 
-export const signAccessToken = ({ userId, role }) =>
+export const signAccessToken = ({ userId }) =>
   jwt.sign(
     {
       userId: String(userId),
-      role: role,
       type: 'access',
     },
     process.env.JWT_ACCESS_SECRET,
@@ -37,4 +36,27 @@ export const getTokenExpiresAt = (token) => {
   }
 
   return new Date(payload.exp * 1000);
+};
+
+export const verifyToken = ({ token, type }) => {
+  return jwt.verify(
+    token,
+    type === 'access' ? process.env.JWT_ACCESS_SECRET : process.env.JWT_REFRESH_SECRET,
+  );
+};
+
+export const extractAccessToken = (req) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) return null;
+
+  const [type, token] = authHeader.trim().split(/\s+/);
+
+  if (!type || type.toLowerCase() !== 'bearer' || !token) return null;
+
+  return token;
+};
+
+export const getRefreshToken = (req) => {
+  return req.cookies?.refreshToken ?? null;
 };

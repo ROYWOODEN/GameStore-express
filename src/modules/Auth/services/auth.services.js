@@ -9,10 +9,11 @@ import bcrypt from 'bcryptjs';
 import {
   createUserRecord,
   createUserSessionRecord,
+  loginUserRecord,
   updateUserSessionRecord,
 } from '../repositories/auth.repository.js';
 import { getTokenExpiresAt, signAccessToken, signRefreshToken } from '../utils/tokens.js';
-import { registerSchema } from '../validators/auth.schemas.js';
+import { loginSchema, registerSchema } from '../validators/auth.schemas.js';
 
 const buildResponseUser = (createdUser) => {
   const { roles, ...userData } = createdUser;
@@ -67,7 +68,7 @@ export const registerUser = async ({ body, userAgent, ip }) => {
     }
 
     const responseUser = buildResponseUser(createdUser);
-    const accessToken = signAccessToken({ userId: responseUser.id, role: responseUser.role });
+    const accessToken = signAccessToken({ userId: responseUser.id });
 
     const session = await createUserSessionRecord(
       {
@@ -102,5 +103,73 @@ export const registerUser = async ({ body, userAgent, ip }) => {
       refreshToken,
       refreshTokenExpiresAt,
     };
+  });
+};
+
+export const loginUser = async ({ body, userAgent, ip }) => {
+  const parsed = loginSchema.safeParse(body);
+
+  if (!parsed.success) {
+    throw new AppError({
+      debug: 'Invalid login data',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.AUTH_VALIDATION,
+      details: mapZodIssues(parsed.error.issues),
+    });
+  }
+
+  const { email, password } = parsed.data;
+
+  const user = await loginUserRecord({ email });
+  if (!user) {
+    throw new AppError({
+      debug: 'Invalid credentials',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_INVALID_CREDENTIALS,
+    });
+  }
+
+  const { password_hash, ...resultUser } = user;
+
+  const isValidPassword = await bcrypt.compare(password, password_hash);
+
+  if (!isValidPassword) {
+    throw new AppError({
+      debug: 'Invalid credentials',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_INVALID_CREDENTIALS,
+    });
+  }
+  const responseUser = buildResponseUser(resultUser);
+  const accessToken = signAccessToken({ userId: responseUser.id });
+
+  return prisma.$transaction(async (tx) => {
+    const session = await createUserSessionRecord(
+      {
+        userId: responseUser.id,
+        refreshTokenHash: '',
+        userAgent,
+        ip,
+        expiresAt: new Date(),
+      },
+      tx,
+    );
+
+    const refreshToken = signRefreshToken({
+      userId: responseUser.id,
+      sessionId: session.id,
+    });
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    const refreshTokenExpiresAt = getTokenExpiresAt(refreshToken);
+
+    await updateUserSessionRecord(
+      {
+        sessionId: session.id,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
+      },
+      tx,
+    );
+    return { user: responseUser, accessToken, refreshToken, refreshTokenExpiresAt };
   });
 };
