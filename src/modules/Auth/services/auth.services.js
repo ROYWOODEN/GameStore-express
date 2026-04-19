@@ -9,10 +9,18 @@ import bcrypt from 'bcryptjs';
 import {
   createUserRecord,
   createUserSessionRecord,
+  getUserSessionById,
   loginUserRecord,
+  revokeUserSessionRecord,
   updateUserSessionRecord,
 } from '../repositories/auth.repository.js';
-import { getTokenExpiresAt, signAccessToken, signRefreshToken } from '../utils/tokens.js';
+import {
+  getTokenExpiresAt,
+  signAccessToken,
+  signRefreshToken,
+  verifyToken,
+} from '../utils/tokens.js';
+import { getAbsoluteSessionExpiresAt } from '../utils/session-expiration.js';
 import { loginSchema, registerSchema } from '../validators/auth.schemas.js';
 
 const buildResponseUser = (createdUser) => {
@@ -69,6 +77,7 @@ export const registerUser = async ({ body, userAgent, ip }) => {
 
     const responseUser = buildResponseUser(createdUser);
     const accessToken = signAccessToken({ userId: responseUser.id });
+    const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
     const session = await createUserSessionRecord(
       {
@@ -77,6 +86,7 @@ export const registerUser = async ({ body, userAgent, ip }) => {
         userAgent,
         ip,
         expiresAt: new Date(),
+        absoluteExpiresAt: absoluteSessionExpiresAt,
       },
       tx,
     );
@@ -142,6 +152,7 @@ export const loginUser = async ({ body, userAgent, ip }) => {
   }
   const responseUser = buildResponseUser(resultUser);
   const accessToken = signAccessToken({ userId: responseUser.id });
+  const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
   return prisma.$transaction(async (tx) => {
     const session = await createUserSessionRecord(
@@ -151,6 +162,7 @@ export const loginUser = async ({ body, userAgent, ip }) => {
         userAgent,
         ip,
         expiresAt: new Date(),
+        absoluteExpiresAt: absoluteSessionExpiresAt,
       },
       tx,
     );
@@ -170,6 +182,64 @@ export const loginUser = async ({ body, userAgent, ip }) => {
       },
       tx,
     );
-    return { user: responseUser, accessToken, refreshToken, refreshTokenExpiresAt };
+    return {
+      user: responseUser,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresAt,
+    };
+  });
+};
+
+export const logoutUser = async ({ accessToken, refreshToken }) => {
+  if (!accessToken || !refreshToken) {
+    throw new AppError({
+      debug: 'Missing access or refresh token on logout',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+    });
+  }
+
+  const accessPayload = verifyToken({
+    token: accessToken,
+    type: 'access',
+  });
+  const refreshPayload = verifyToken({
+    token: refreshToken,
+    type: 'refresh',
+  });
+
+  if (accessPayload.userId !== refreshPayload.userId) {
+    throw new AppError({
+      debug: 'Access token user does not match refresh token user on logout',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+    });
+  }
+
+  const sessionId = BigInt(refreshPayload.sessionId);
+  const session = await getUserSessionById({ sessionId });
+
+  if (!session) {
+    throw new AppError({
+      debug: `Session ${sessionId} was not found on logout`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+    });
+  }
+
+  const isCurrentToken = await bcrypt.compare(refreshToken, session.refresh_token_hash);
+
+  if (!isCurrentToken) {
+    throw new AppError({
+      debug: `Refresh token hash mismatch for session ${sessionId} on logout`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+    });
+  }
+
+  await revokeUserSessionRecord({
+    sessionId,
+    revokedAt: new Date(),
   });
 };

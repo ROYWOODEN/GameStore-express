@@ -151,16 +151,17 @@ model user_providers {
 }
 
 model user_sessions {
-  id                 BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
-  user_id            BigInt    @db.UnsignedBigInt
-  refresh_token_hash String    @db.VarChar(255)
-  user_agent         String?   @db.VarChar(512)
-  ip                 String?   @db.VarChar(45)
-  expires_at         DateTime  @db.DateTime(0)
-  created_at         DateTime  @default(now()) @db.DateTime(0)
-  updated_at         DateTime  @default(now()) @db.DateTime(0)
-  revoked_at         DateTime? @db.DateTime(0)
-  users              users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_sessions_user")
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id             BigInt    @db.UnsignedBigInt
+  refresh_token_hash  String    @db.VarChar(255)
+  user_agent          String?   @db.VarChar(512)
+  ip                  String?   @db.VarChar(45)
+  expires_at          DateTime  @db.DateTime(0)
+  absolute_expires_at DateTime  @db.DateTime(0)
+  created_at          DateTime  @default(now()) @db.DateTime(0)
+  updated_at          DateTime  @default(now()) @db.DateTime(0)
+  revoked_at          DateTime? @db.DateTime(0)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_sessions_user")
 
   @@index([expires_at], map: "idx_user_sessions_expires_at")
   @@index([revoked_at], map: "idx_user_sessions_revoked_at")
