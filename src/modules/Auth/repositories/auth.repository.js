@@ -22,7 +22,7 @@ export const createUserRecord = async ({ name, email, passwordHash }, db = prism
 };
 
 export const createUserSessionRecord = async (
-  { userId, refreshTokenHash, userAgent, ip, expiresAt },
+  { userId, refreshTokenHash, userAgent, ip, expiresAt, absoluteExpiresAt },
   db = prisma,
 ) => {
   return db.user_sessions.create({
@@ -32,6 +32,7 @@ export const createUserSessionRecord = async (
       user_agent: userAgent ?? null,
       ip: ip ?? null,
       expires_at: expiresAt,
+      absolute_expires_at: absoluteExpiresAt,
     },
   });
 };
@@ -47,6 +48,26 @@ export const updateUserSessionRecord = async (
     data: {
       refresh_token_hash: refreshTokenHash,
       expires_at: expiresAt,
+    },
+  });
+};
+
+export const getUserSessionById = async ({ sessionId }, db = prisma) => {
+  return db.user_sessions.findUnique({
+    where: {
+      id: sessionId,
+    },
+  });
+};
+
+export const revokeUserSessionRecord = async ({ sessionId, revokedAt }, db = prisma) => {
+  return db.user_sessions.updateMany({
+    where: {
+      id: sessionId,
+      revoked_at: null,
+    },
+    data: {
+      revoked_at: revokedAt,
     },
   });
 };

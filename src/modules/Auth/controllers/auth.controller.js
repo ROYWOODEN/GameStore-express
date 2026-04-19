@@ -1,7 +1,8 @@
 import { HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { logger } from '#src/core/logger.js';
-import { loginUser, registerUser } from '../services/auth.services.js';
-import { getRefreshCookieOptions } from '../utils/refresh-cookie.js';
+import { loginUser, logoutUser, registerUser } from '../services/auth.services.js';
+import { getRefreshCookieBaseOptions, getRefreshCookieOptions } from '../utils/refresh-cookie.js';
+import { extractAccessToken, getRefreshToken } from '../utils/tokens.js';
 
 export const register = async (req, res) => {
   logger.info('POST /api/auth/register - Register new user');
@@ -43,5 +44,21 @@ export const login = async (req, res) => {
       accessToken,
       user: user,
     },
+  });
+};
+
+export const logout = async (req, res) => {
+  const accessToken = extractAccessToken(req);
+  const refreshToken = getRefreshToken(req);
+
+  logger.info('POST /api/auth/logout - Logout user');
+
+  await logoutUser({ accessToken, refreshToken });
+
+  res.clearCookie('refreshToken', getRefreshCookieBaseOptions());
+
+  logger.success('Logout was successful');
+  return res.status(HTTP_STATUS.OK).json({
+    success: true,
   });
 };

@@ -17,6 +17,15 @@ const normalizeToAppError = (error) => {
     });
   }
 
+  if (error?.name === 'TokenExpiredError') {
+    return new AppError({
+      debug: error?.message || 'Token expired',
+      type: ERROR_TYPES.AUTH_EXPIRED,
+      message: ERROR_MESSAGES.AUTH_EXPIRED,
+      statusCode: error?.statusCode ?? null,
+    });
+  }
+
   if (error?.name === 'PrismaClientKnownRequestError') {
     const targetFields = getPrismaTargetFields(error?.meta?.target);
 
