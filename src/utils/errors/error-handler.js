@@ -3,7 +3,7 @@ import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 
-const normalizeToAppError = (error) => {
+export const normalizeToAppError = (error) => {
   if (error instanceof AppError) {
     return error;
   }
