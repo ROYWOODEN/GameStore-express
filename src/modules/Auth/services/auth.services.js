@@ -14,13 +14,10 @@ import {
   revokeUserSessionRecord,
   updateUserSessionRecord,
 } from '../repositories/auth.repository.js';
-import {
-  getTokenExpiresAt,
-  signAccessToken,
-  signRefreshToken,
-  verifyToken,
-} from '../utils/tokens.js';
+import { compareRefreshToken } from '../utils/refresh-token-hash.js';
+import { verifyToken } from '../utils/tokens.js';
 import { getAbsoluteSessionExpiresAt } from '../utils/session-expiration.js';
+import { generateSessionTokens } from '../utils/session-tokens.js';
 import { loginSchema, registerSchema } from '../validators/auth.schemas.js';
 
 const buildResponseUser = (createdUser) => {
@@ -76,7 +73,6 @@ export const registerUser = async ({ body, userAgent, ip }) => {
     }
 
     const responseUser = buildResponseUser(createdUser);
-    const accessToken = signAccessToken({ userId: responseUser.id });
     const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
     const session = await createUserSessionRecord(
@@ -91,12 +87,12 @@ export const registerUser = async ({ body, userAgent, ip }) => {
       tx,
     );
 
-    const refreshToken = signRefreshToken({
-      userId: responseUser.id,
-      sessionId: session.id,
-    });
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    const refreshTokenExpiresAt = getTokenExpiresAt(refreshToken);
+    const { accessToken, refreshToken, refreshTokenHash, refreshTokenExpiresAt } =
+      await generateSessionTokens({
+        userId: responseUser.id,
+        sessionId: session.id,
+        absoluteExpiresAt: absoluteSessionExpiresAt,
+      });
 
     await updateUserSessionRecord(
       {
@@ -151,7 +147,6 @@ export const loginUser = async ({ body, userAgent, ip }) => {
     });
   }
   const responseUser = buildResponseUser(resultUser);
-  const accessToken = signAccessToken({ userId: responseUser.id });
   const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
   return prisma.$transaction(async (tx) => {
@@ -167,12 +162,12 @@ export const loginUser = async ({ body, userAgent, ip }) => {
       tx,
     );
 
-    const refreshToken = signRefreshToken({
-      userId: responseUser.id,
-      sessionId: session.id,
-    });
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-    const refreshTokenExpiresAt = getTokenExpiresAt(refreshToken);
+    const { accessToken, refreshToken, refreshTokenHash, refreshTokenExpiresAt } =
+      await generateSessionTokens({
+        userId: responseUser.id,
+        sessionId: session.id,
+        absoluteExpiresAt: absoluteSessionExpiresAt,
+      });
 
     await updateUserSessionRecord(
       {
@@ -182,6 +177,7 @@ export const loginUser = async ({ body, userAgent, ip }) => {
       },
       tx,
     );
+
     return {
       user: responseUser,
       accessToken,
@@ -191,51 +187,219 @@ export const loginUser = async ({ body, userAgent, ip }) => {
   });
 };
 
-export const logoutUser = async ({ accessToken, refreshToken }) => {
-  if (!accessToken || !refreshToken) {
+export const refreshUserTokens = async ({ refreshToken }) => {
+  if (!refreshToken) {
     throw new AppError({
-      debug: 'Missing access or refresh token on logout',
+      debug: 'Missing refresh token on refresh',
       type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
     });
   }
 
-  const accessPayload = verifyToken({
-    token: accessToken,
-    type: 'access',
-  });
-  const refreshPayload = verifyToken({
-    token: refreshToken,
-    type: 'refresh',
-  });
+  let refreshPayload;
 
-  if (accessPayload.userId !== refreshPayload.userId) {
+  try {
+    refreshPayload = verifyToken({
+      token: refreshToken,
+      type: 'refresh',
+    });
+  } catch (error) {
+    if (error?.name !== 'TokenExpiredError') {
+      throw new AppError({
+        debug: error?.message || 'Refresh token verification failed',
+        type: ERROR_TYPES.AUTH,
+        message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+      });
+    }
+
+    const expiredRefreshPayload = verifyToken({
+      token: refreshToken,
+      type: 'refresh',
+      ignoreExpiration: true,
+    });
+
+    let expiredSessionId;
+    try {
+      expiredSessionId = BigInt(expiredRefreshPayload.sessionId);
+    } catch {
+      throw new AppError({
+        debug: 'Invalid session id in refresh token',
+        type: ERROR_TYPES.AUTH,
+        message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+      });
+    }
+
+    await revokeUserSessionRecord({
+      sessionId: expiredSessionId,
+      revokedAt: new Date(),
+    });
+
     throw new AppError({
-      debug: 'Access token user does not match refresh token user on logout',
+      debug: `Refresh token expired for session ${expiredSessionId}`,
       type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
     });
   }
 
-  const sessionId = BigInt(refreshPayload.sessionId);
+  let sessionId;
+  try {
+    sessionId = BigInt(refreshPayload.sessionId);
+  } catch {
+    throw new AppError({
+      debug: 'Invalid session id in refresh token',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
   const session = await getUserSessionById({ sessionId });
 
   if (!session) {
     throw new AppError({
-      debug: `Session ${sessionId} was not found on logout`,
+      debug: `Session ${sessionId} was not found on refresh`,
       type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
     });
   }
 
-  const isCurrentToken = await bcrypt.compare(refreshToken, session.refresh_token_hash);
+  if (session.revoked_at) {
+    throw new AppError({
+      debug: `Session ${sessionId} is already revoked`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
+  if (String(session.user_id) !== String(refreshPayload.userId)) {
+    await revokeUserSessionRecord({
+      sessionId,
+      revokedAt: new Date(),
+    });
+
+    throw new AppError({
+      debug: `Refresh token user does not match session user for session ${sessionId}`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
+  const now = new Date();
+
+  if (session.absolute_expires_at.getTime() <= now.getTime()) {
+    await revokeUserSessionRecord({
+      sessionId,
+      revokedAt: new Date(),
+    });
+
+    throw new AppError({
+      debug: `Session ${sessionId} exceeded its absolute lifetime`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
+  if (session.expires_at.getTime() <= now.getTime()) {
+    await revokeUserSessionRecord({
+      sessionId,
+      revokedAt: new Date(),
+    });
+
+    throw new AppError({
+      debug: `Session ${sessionId} exceeded its refresh lifetime`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
+  const isCurrentToken =
+    Boolean(session.refresh_token_hash) &&
+    compareRefreshToken(refreshToken, session.refresh_token_hash);
 
   if (!isCurrentToken) {
-    throw new AppError({
-      debug: `Refresh token hash mismatch for session ${sessionId} on logout`,
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_UNAUTHORIZED,
+    await revokeUserSessionRecord({
+      sessionId,
+      revokedAt: new Date(),
     });
+
+    throw new AppError({
+      debug: `Refresh token hash mismatch for session ${sessionId} on refresh`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const {
+      accessToken,
+      refreshToken: nextRefreshToken,
+      refreshTokenHash,
+      refreshTokenExpiresAt,
+    } = await generateSessionTokens({
+      userId: session.user_id,
+      sessionId: session.id,
+      absoluteExpiresAt: session.absolute_expires_at,
+    });
+
+    await updateUserSessionRecord(
+      {
+        sessionId: session.id,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
+      },
+      tx,
+    );
+
+    return {
+      accessToken,
+      refreshToken: nextRefreshToken,
+      refreshTokenExpiresAt,
+    };
+  });
+};
+
+export const logoutUser = async ({ refreshToken }) => {
+  if (!refreshToken) {
+    return;
+  }
+
+  let refreshPayload;
+
+  try {
+    refreshPayload = verifyToken({
+      token: refreshToken,
+      type: 'refresh',
+    });
+  } catch (error) {
+    if (error?.name !== 'TokenExpiredError') {
+      return;
+    }
+
+    try {
+      refreshPayload = verifyToken({
+        token: refreshToken,
+        type: 'refresh',
+        ignoreExpiration: true,
+      });
+    } catch {
+      return;
+    }
+  }
+
+  let sessionId;
+  try {
+    sessionId = BigInt(refreshPayload.sessionId);
+  } catch {
+    return;
+  }
+
+  const session = await getUserSessionById({ sessionId });
+
+  if (!session || session.revoked_at) {
+    return;
+  }
+
+  if (String(session.user_id) !== String(refreshPayload.userId)) {
+    return;
   }
 
   await revokeUserSessionRecord({
