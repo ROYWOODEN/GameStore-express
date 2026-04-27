@@ -3,7 +3,7 @@ import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getRefreshToken, verifyToken } from '../utils/tokens.js';
 
-export const onlyGuest = (req, res, next) => {
+export const onlyGuest = (req, _res, next) => {
   const refreshToken = getRefreshToken(req);
 
   if (!refreshToken) {

@@ -8,6 +8,7 @@ export const ERROR_MESSAGES = {
   AUTH_EXPIRED: 'errors.auth.expired', // Access протух (сигнал для рефреша)
   AUTH_REFRESH_FAILED: 'errors.auth.refresh_failed', // Когда даже рефреш не помог
   AUTH_ALREADY_AUTHORIZED: 'errors.auth.already_authorized',
+  AUTH_FORBIDDEN: 'errors.auth.forbidden',
   AUTH_INVALID_CREDENTIALS: 'errors.auth.invalid_credentials',
 
   AUTH_VALIDATION: 'errors.auth.validation',
