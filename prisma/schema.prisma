@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  // output   = "../generated/prisma"
 }
 
 datasource db {
@@ -9,67 +8,162 @@ datasource db {
 }
 
 model basket {
-  id_basket BigInt @unique(map: "id_basket") @default(autoincrement()) @db.UnsignedBigInt
-  id_game   BigInt @db.UnsignedBigInt
-  id_user   BigInt @db.UnsignedBigInt
-  games     games  @relation(fields: [id_game], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_1")
-  users     users  @relation(fields: [id_user], references: [id_user], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_2")
+  id      BigInt @unique(map: "id_basket") @default(autoincrement()) @db.UnsignedBigInt
+  game_id BigInt @db.UnsignedBigInt
+  user_id BigInt @db.UnsignedBigInt
+  games   games  @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_1")
+  users   users  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "basket_ibfk_2")
 
-  @@index([id_game], map: "id_game")
-  @@index([id_user], map: "id_user")
+  @@unique([user_id, game_id], map: "uq_basket_user_game")
+  @@index([game_id], map: "id_game")
+  @@index([user_id], map: "id_user")
 }
 
 model favourites {
-  id_favourites BigInt  @unique(map: "id_favourites") @default(autoincrement()) @db.UnsignedBigInt
-  id_user       BigInt? @db.UnsignedBigInt
-  id_games      BigInt? @db.UnsignedBigInt
-  users         users?  @relation(fields: [id_user], references: [id_user], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_1")
-  games         games?  @relation(fields: [id_games], references: [id_game], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_2")
+  id      BigInt  @unique(map: "id_favourites") @default(autoincrement()) @db.UnsignedBigInt
+  user_id BigInt? @db.UnsignedBigInt
+  game_id BigInt? @db.UnsignedBigInt
+  users   users?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_1")
+  games   games?  @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "favourites_ibfk_2")
 
-  @@index([id_games], map: "id_games")
-  @@index([id_user], map: "id_user")
+  @@index([game_id], map: "id_games")
+  @@index([user_id], map: "id_user")
 }
 
 model game_tags {
   id      BigInt @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
-  id_game BigInt @db.UnsignedBigInt
-  id_tags BigInt @db.UnsignedBigInt
-  games   games  @relation(fields: [id_game], references: [id_game], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_1")
-  tags    tags   @relation(fields: [id_tags], references: [id_tags], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_2")
+  game_id BigInt @db.UnsignedBigInt
+  tags_id BigInt @db.UnsignedBigInt
+  games   games  @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_1")
+  tags    tags   @relation(fields: [tags_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "game_tags_ibfk_2")
 
-  @@index([id_game], map: "game_tags_ibfk_1")
-  @@index([id_tags], map: "game_tags_ibfk_2")
+  @@unique([game_id, tags_id], map: "uq_game_tags")
+  @@index([game_id], map: "game_tags_ibfk_1")
+  @@index([tags_id], map: "game_tags_ibfk_2")
 }
 
 model games {
-  id_game     BigInt       @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
-  title       String       @db.VarChar(255)
-  description String       @db.Text
-  price       Decimal      @db.Decimal(10, 2)
-  image       String       @db.Text
-  basket      basket[]
-  favourites  favourites[]
-  game_tags   game_tags[]
+  id           BigInt        @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  title        String        @unique(map: "title") @db.VarChar(255)
+  description  String        @db.Text
+  price        Decimal       @db.Decimal(10, 2)
+  release_date DateTime?     @db.Date
+  created_at   DateTime      @default(now()) @db.Timestamp(0)
+  updated_at   DateTime      @default(now()) @db.Timestamp(0)
+  basket       basket[]
+  favourites   favourites[]
+  game_images  game_images[]
+  game_tags    game_tags[]
+  game_videos  game_videos[]
 }
 
 model tags {
-  id_tags   BigInt      @unique(map: "id_tags") @default(autoincrement()) @db.UnsignedBigInt
-  name      String      @unique(map: "name")
-  game_tags game_tags[]
+  id         BigInt      @unique(map: "id_tags") @default(autoincrement()) @db.UnsignedBigInt
+  name       String      @unique(map: "name")
+  created_at DateTime    @default(now()) @db.Timestamp(0)
+  type_id    BigInt      @default(1) @db.UnsignedBigInt
+  game_tags  game_tags[]
+  tag_types  tag_types   @relation(fields: [type_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tags_ibfk_1")
+
+  @@index([type_id], map: "type_id")
 }
 
 model users {
-  id_user    BigInt       @unique(map: "id_user") @default(autoincrement()) @db.UnsignedBigInt
-  name       String       @db.VarChar(20)
-  login      String       @unique(map: "login") @db.VarChar(30)
-  password   String       @db.Text
-  role       users_role?  @default(user)
-  avatar     String       @db.VarChar(255)
-  basket     basket[]
-  favourites favourites[]
+  id             BigInt           @unique(map: "id_user") @default(autoincrement()) @db.UnsignedBigInt
+  name           String           @db.VarChar(20)
+  email          String           @unique(map: "email") @db.VarChar(255)
+  password_hash  String?          @db.Text
+  role_id        BigInt           @default(2) @db.UnsignedBigInt
+  avatar_url     String?          @db.Text
+  created_at     DateTime         @default(now()) @db.Timestamp(0)
+  basket         basket[]
+  favourites     favourites[]
+  user_providers user_providers[]
+  user_sessions  user_sessions[]
+  roles          roles            @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "users_ibfk_1")
+
+  @@index([role_id], map: "role_id")
 }
 
-enum users_role {
-  user
-  admin
+model game_images {
+  id         BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  url        String   @db.Text
+  alt        String   @db.VarChar(100)
+  sort_order Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  game_id    BigInt   @db.UnsignedBigInt
+  games      games    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "game_images_ibfk_1")
+
+  @@index([game_id], map: "game_id")
+}
+
+model game_videos {
+  id         BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  url        String   @db.Text
+  title      String   @db.VarChar(255)
+  duration   Int
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  game_id    BigInt   @db.UnsignedBigInt
+  games      games    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "game_videos_ibfk_1")
+
+  @@index([game_id], map: "game_id")
+}
+
+model tag_types {
+  id         BigInt @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  name       String @db.VarChar(50)
+  color      String @db.VarChar(7)
+  icon       String @db.VarChar(50)
+  sort_order Int    @db.TinyInt
+  tags       tags[]
+}
+
+model providers {
+  id             BigInt           @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  code           String           @unique(map: "code") @db.VarChar(50)
+  name           String           @db.VarChar(100)
+  is_active      Boolean          @default(true)
+  created_at     DateTime         @default(now()) @db.Timestamp(0)
+  user_providers user_providers[]
+}
+
+model roles {
+  id          BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  name        String   @unique(map: "name") @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  users       users[]
+}
+
+model user_providers {
+  id               BigInt    @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
+  user_id          BigInt    @db.UnsignedBigInt
+  provider_id      BigInt    @db.UnsignedBigInt
+  provider_user_id String    @unique(map: "provider_user_id") @db.VarChar(255)
+  provider_email   String?   @db.VarChar(255)
+  created_at       DateTime  @default(now()) @db.Timestamp(0)
+  updated_at       DateTime? @default(now()) @db.Timestamp(0)
+  providers        providers @relation(fields: [provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_providers_ibfk_1")
+  users            users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_providers_ibfk_2")
+
+  @@index([provider_id], map: "provider_id")
+  @@index([user_id], map: "user_id")
+}
+
+model user_sessions {
+  id                  BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id             BigInt    @db.UnsignedBigInt
+  refresh_token_hash  String    @db.VarChar(255)
+  user_agent          String?   @db.VarChar(512)
+  ip                  String?   @db.VarChar(45)
+  expires_at          DateTime  @db.DateTime(0)
+  absolute_expires_at DateTime  @db.DateTime(0)
+  created_at          DateTime  @default(now()) @db.DateTime(0)
+  updated_at          DateTime  @default(now()) @db.DateTime(0)
+  revoked_at          DateTime? @db.DateTime(0)
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_sessions_user")
+
+  @@index([expires_at], map: "idx_user_sessions_expires_at")
+  @@index([revoked_at], map: "idx_user_sessions_revoked_at")
+  @@index([user_id], map: "idx_user_sessions_user_id")
 }

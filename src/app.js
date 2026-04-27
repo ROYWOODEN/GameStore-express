@@ -1,8 +1,20 @@
-const express = require("express");
-const cors = require("cors");
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import { errorHandler } from '#src/middleware/error.middleware.js';
+import { logger } from '#src/core/logger.js';
+import { gamesRouter } from './modules/games/index.js';
+import { authRouter } from './modules/Auth/index.js';
+import cookieParser from 'cookie-parser';
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
+  }),
+);
+app.use(cookieParser());
 app.use(express.json());
 
 // Костыль для BigInt - один раз и навсегда
@@ -10,7 +22,17 @@ BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
+app.use('/api', gamesRouter);
+app.use('/api', authRouter);
 
+app.get('/', async (_, res) => {
+  logger.info('GET / - Homepage request');
+  res.send('<h1>Главная</h1>');
+});
 
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-module.exports = app;
+// errorHandler ДОЛЖЕН быть последним middleware
+app.use(errorHandler);
+
+export { app };
