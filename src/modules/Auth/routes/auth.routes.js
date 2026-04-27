@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { login, logout, refresh, register } from '../controllers/auth.controller.js';
-import { onlyGuest } from '../middleware/guest.middleware.js';
+import { onlyGuest } from '../middleware/require-guest.middleware.js';
 
 const authRouter = Router();
 

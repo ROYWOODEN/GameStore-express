@@ -89,3 +89,19 @@ export const loginUserRecord = async ({ email }) => {
     },
   });
 };
+
+export const findUserRoleByIdRecord = async ({ userId }) => {
+  return prisma.users.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      roles: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+};
