@@ -1,6 +1,7 @@
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { prisma } from '#src/core/prisma.js';
+import { mapUserProfile } from '#src/modules/user/mappers/user.mapper.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
@@ -19,15 +20,6 @@ import { verifyToken } from '../utils/tokens.js';
 import { getAbsoluteSessionExpiresAt } from '../utils/session-expiration.js';
 import { generateSessionTokens } from '../utils/session-tokens.js';
 import { loginSchema, registerSchema } from '../validators/auth.schemas.js';
-
-const buildResponseUser = (createdUser) => {
-  const { roles, ...userData } = createdUser;
-
-  return {
-    ...userData,
-    role: roles.name,
-  };
-};
 
 export const registerUser = async ({ body, userAgent, ip }) => {
   const parsed = registerSchema.safeParse(body);
@@ -72,7 +64,7 @@ export const registerUser = async ({ body, userAgent, ip }) => {
       throw error;
     }
 
-    const responseUser = buildResponseUser(createdUser);
+    const responseUser = mapUserProfile(createdUser);
     const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
     const session = await createUserSessionRecord(
@@ -146,7 +138,7 @@ export const loginUser = async ({ body, userAgent, ip }) => {
       message: ERROR_MESSAGES.AUTH_INVALID_CREDENTIALS,
     });
   }
-  const responseUser = buildResponseUser(resultUser);
+  const responseUser = mapUserProfile(resultUser);
   const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
   return prisma.$transaction(async (tx) => {

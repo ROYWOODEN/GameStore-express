@@ -14,6 +14,7 @@ export const ERROR_MESSAGES = {
   AUTH_VALIDATION: 'errors.auth.validation',
   AUTH_EMAIL_TAKEN: 'errors.auth.email_taken',
   GAME_TITLE_TAKEN: 'errors.games.title_taken',
+  USER_EMAIL_TAKEN: 'errors.users.email_taken',
   VALIDATION_FAILED: 'errors.validation.failed',
   FILES_REQUIRED: 'errors.validation.files_required',
   INVALID_FILE_TYPE: 'errors.validation.invalid_file_type',
