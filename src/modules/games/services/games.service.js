@@ -1,6 +1,6 @@
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
-import { FILE_TARGETS, cleanupTargetUrls, cleanupUploadedFiles } from '#src/modules/files/index.js';
+import { cleanupTargetUrls, cleanupUploadedFiles } from '#src/modules/files/index.js';
 import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mappers.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
@@ -51,28 +51,6 @@ const validateCreateFiles = (files) => {
       type: ERROR_TYPES.VALIDATION,
       message: ERROR_MESSAGES.FILES_REQUIRED,
       details: { resource: 'game', field: 'images' },
-    });
-  }
-
-  const cfg = FILE_TARGETS.game_images;
-  const invalidFiles = files.filter((file) => !cfg.mime.includes(file.mimetype));
-
-  if (invalidFiles.length > 0) {
-    cleanupUploadedFiles(files, {
-      scope: 'games.create',
-      reason: 'mime_validation_error',
-    });
-
-    throw new AppError({
-      debug: 'Invalid file type',
-      type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.INVALID_FILE_TYPE,
-      details: {
-        resource: 'game',
-        field: 'images',
-        allowedTypes: cfg.mime,
-        invalidFiles: invalidFiles.map((file) => file.originalname),
-      },
     });
   }
 };

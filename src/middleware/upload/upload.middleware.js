@@ -2,7 +2,7 @@
 import multer from 'multer';
 import fs from 'fs';
 import { FILE_TARGETS } from '#src/modules/files/config/files.config.js';
-import { genFileName } from '#src/utils/file-name.js';
+import { genFileName } from '#src/modules/files/utils/file-name.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { ERROR_TYPES } from '#src/constants/http-statuses.js';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
@@ -33,9 +33,25 @@ export const makeUpload = (type) => {
     filename: (_req, file, cb) => cb(null, genFileName(file.originalname)),
   });
 
-  // Проверяем, что тип файла разрешён (mime) - временно разрешаем все, проверка в контроллере
+  // Проверяем, что тип файла разрешён (mime) - временно разрешаем все, проверка в сервисе
   const fileFilter = (_req, file, cb) => {
-    cb(null, true);
+    if (cfg.mime.includes(file.mimetype)) {
+      return cb(null, true);
+    }
+
+    return cb(
+      new AppError({
+        debug: `Invalid file type for ${type}: ${file.mimetype}`,
+        type: ERROR_TYPES.VALIDATION,
+        message: ERROR_MESSAGES.INVALID_FILE_TYPE,
+        details: {
+          target: type,
+          allowedTypes: cfg.mime,
+          receivedType: file.mimetype,
+          filename: file.originalname,
+        },
+      }),
+    );
   };
 
   // ВОТ ТУТ ФИШКА: maxSize берём из конфига -> разные лимиты под разные type

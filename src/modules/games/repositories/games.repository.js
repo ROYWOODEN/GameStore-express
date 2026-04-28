@@ -1,4 +1,5 @@
 import { prisma } from '#src/core/prisma.js';
+import { buildTargetFileUrl } from '#src/modules/files/index.js';
 
 const GAME_LIST_INCLUDE = {
   game_images: {
@@ -62,7 +63,7 @@ export const createGameWithImagesRecord = async (game, files) => {
       await tx.game_images.createMany({
         data: files.map((file, index) => ({
           game_id: gameRow.id,
-          url: `/uploads/images/games/${file.filename}`,
+          url: buildTargetFileUrl('game_images', file.filename),
           alt: game.title,
           sort_order: index,
         })),

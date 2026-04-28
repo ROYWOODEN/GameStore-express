@@ -1,7 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
-import { cleanupTargetUrls } from '#src/modules/files/index.js';
+import {
+  buildTargetFileUrl,
+  cleanupTargetUrls,
+  cleanupUploadedFiles,
+} from '#src/modules/files/index.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
@@ -95,6 +99,60 @@ export const updateCurrentUser = async ({ userId, body }) => {
   return mapUserProfile(updatedUser);
 };
 
+export const updateCurrentUserAvatar = async ({ userId, file }) => {
+  if (!file) {
+    throw new AppError({
+      debug: 'No avatar uploaded',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.FILES_REQUIRED,
+      details: { resource: 'user', field: 'avatar' },
+    });
+  }
+
+  const existingUser = await findUserProfileByIdRecord({ userId });
+
+  if (!existingUser) {
+    cleanupUploadedFiles(file, {
+      scope: 'users.avatar.update',
+      reason: 'user_not_found',
+      userId: String(userId),
+    });
+
+    throw buildUserNotFoundError();
+  }
+
+  const avatarUrl = buildTargetFileUrl('user_avatars', file.filename);
+
+  let updatedUser;
+
+  try {
+    updatedUser = await updateUserProfileByIdRecord({
+      userId,
+      data: {
+        avatar_url: avatarUrl,
+      },
+    });
+  } catch (error) {
+    cleanupUploadedFiles(file, {
+      scope: 'users.avatar.update',
+      reason: 'db_error',
+      userId: String(userId),
+    });
+
+    throw error;
+  }
+
+  if (existingUser.avatar_url && existingUser.avatar_url !== avatarUrl) {
+    cleanupTargetUrls(existingUser.avatar_url, 'user_avatars', {
+      scope: 'users.avatar.update',
+      reason: 'replace_old_avatar',
+      userId: String(userId),
+    });
+  }
+
+  return mapUserProfile(updatedUser);
+};
+
 export const deleteCurrentUser = async (userId) => {
   const existingUser = await findUserProfileByIdRecord({ userId });
 
@@ -114,4 +172,31 @@ export const deleteCurrentUser = async (userId) => {
       userId: String(userId),
     });
   }
+};
+
+export const deleteCurrentUserAvatar = async (userId) => {
+  const existingUser = await findUserProfileByIdRecord({ userId });
+
+  if (!existingUser) {
+    throw buildUserNotFoundError();
+  }
+
+  if (!existingUser.avatar_url) {
+    return mapUserProfile(existingUser);
+  }
+
+  const updatedUser = await updateUserProfileByIdRecord({
+    userId,
+    data: {
+      avatar_url: null,
+    },
+  });
+
+  cleanupTargetUrls(existingUser.avatar_url, 'user_avatars', {
+    scope: 'users.avatar.delete',
+    reason: 'remove_avatar',
+    userId: String(userId),
+  });
+
+  return mapUserProfile(updatedUser);
 };
