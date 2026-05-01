@@ -6,6 +6,7 @@ import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
 import { authRouter } from './modules/Auth/index.js';
 import { userRouter } from './modules/user/index.js';
+import { favoritesRouter } from './modules/favorites/index.js';
 import cookieParser from 'cookie-parser';
 
 const app = express();
@@ -26,6 +27,7 @@ BigInt.prototype.toJSON = function () {
 app.use('/api', gamesRouter);
 app.use('/api', authRouter);
 app.use('/api', userRouter);
+app.use('/api', favoritesRouter);
 
 app.get('/', async (_, res) => {
   logger.info('GET / - Homepage request');
