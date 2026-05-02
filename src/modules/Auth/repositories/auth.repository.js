@@ -1,5 +1,23 @@
 import { prisma } from '#src/core/prisma.js';
 
+const USER_PROFILE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  avatar_url: true,
+  created_at: true,
+  roles: {
+    select: {
+      name: true,
+    },
+  },
+};
+
+const LOGIN_USER_SELECT = {
+  ...USER_PROFILE_SELECT,
+  password_hash: true,
+};
+
 export const createUserRecord = async ({ name, email, passwordHash }, db = prisma) => {
   return db.users.create({
     data: {
@@ -7,17 +25,7 @@ export const createUserRecord = async ({ name, email, passwordHash }, db = prism
       email,
       password_hash: passwordHash,
     },
-    omit: {
-      password_hash: true,
-      role_id: true,
-    },
-    include: {
-      roles: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    select: USER_PROFILE_SELECT,
   });
 };
 
@@ -77,16 +85,7 @@ export const loginUserRecord = async ({ email }) => {
     where: {
       email,
     },
-    omit: {
-      role_id: true,
-    },
-    include: {
-      roles: {
-        select: {
-          name: true,
-        },
-      },
-    },
+    select: LOGIN_USER_SELECT,
   });
 };
 
@@ -102,6 +101,97 @@ export const findUserRoleByIdRecord = async ({ userId }) => {
           name: true,
         },
       },
+    },
+  });
+};
+
+export const upsertAuthProviderRecord = async ({ code, name }, db = prisma) => {
+  return db.providers.upsert({
+    where: {
+      code,
+    },
+    update: {
+      name,
+    },
+    create: {
+      code,
+      name,
+      is_active: true,
+    },
+  });
+};
+
+export const findUserProviderByProviderUserIdRecord = async (
+  { providerId, providerUserId },
+  db = prisma,
+) => {
+  return db.user_providers.findFirst({
+    where: {
+      provider_id: providerId,
+      provider_user_id: providerUserId,
+    },
+    include: {
+      users: {
+        select: USER_PROFILE_SELECT,
+      },
+    },
+  });
+};
+
+export const findUserByEmailRecord = async ({ email }, db = prisma) => {
+  return db.users.findUnique({
+    where: {
+      email,
+    },
+    select: USER_PROFILE_SELECT,
+  });
+};
+
+export const createOAuthUserRecord = async ({ name, email, avatarUrl }, db = prisma) => {
+  return db.users.create({
+    data: {
+      name,
+      email,
+      avatar_url: avatarUrl ?? null,
+      password_hash: null,
+    },
+    select: USER_PROFILE_SELECT,
+  });
+};
+
+export const createUserProviderRecord = async (
+  { userId, providerId, providerUserId, providerEmail },
+  db = prisma,
+) => {
+  return db.user_providers.create({
+    data: {
+      user_id: userId,
+      provider_id: providerId,
+      provider_user_id: providerUserId,
+      provider_email: providerEmail ?? null,
+    },
+  });
+};
+
+export const updateUserProviderRecord = async ({ providerUserId, providerEmail }, db = prisma) => {
+  return db.user_providers.update({
+    where: {
+      provider_user_id: providerUserId,
+    },
+    data: {
+      provider_email: providerEmail ?? null,
+    },
+  });
+};
+
+export const updateUserAvatarIfMissingRecord = async ({ userId, avatarUrl }, db = prisma) => {
+  return db.users.updateMany({
+    where: {
+      id: userId,
+      avatar_url: null,
+    },
+    data: {
+      avatar_url: avatarUrl,
     },
   });
 };
