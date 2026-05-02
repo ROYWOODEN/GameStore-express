@@ -10,6 +10,8 @@ export const ERROR_MESSAGES = {
   AUTH_ALREADY_AUTHORIZED: 'errors.auth.already_authorized',
   AUTH_FORBIDDEN: 'errors.auth.forbidden',
   AUTH_INVALID_CREDENTIALS: 'errors.auth.invalid_credentials',
+  AUTH_OAUTH_FAILED: 'errors.auth.oauth_failed',
+  AUTH_OAUTH_NOT_CONFIGURED: 'errors.auth.oauth_not_configured',
 
   AUTH_VALIDATION: 'errors.auth.validation',
   AUTH_EMAIL_TAKEN: 'errors.auth.email_taken',

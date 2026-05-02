@@ -1,11 +1,20 @@
 import { Router } from 'express';
-import { login, logout, refresh, register } from '../controllers/auth.controller.js';
+import {
+  handleGoogleAuthCallback,
+  handleGoogleAuthStart,
+  login,
+  logout,
+  refresh,
+  register,
+} from '../controllers/auth.controller.js';
 import { onlyGuest } from '../middleware/require-guest.middleware.js';
 
 const authRouter = Router();
 
 authRouter.post('/auth/register', onlyGuest, register);
 authRouter.post('/auth/login', onlyGuest, login);
+authRouter.get('/auth/google', onlyGuest, handleGoogleAuthStart);
+authRouter.get('/auth/google/callback', onlyGuest, handleGoogleAuthCallback);
 authRouter.post('/auth/refresh', refresh);
 authRouter.post('/auth/logout', logout);
 

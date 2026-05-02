@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import passport from 'passport';
 import { errorHandler } from '#src/middleware/error.middleware.js';
 import { logger } from '#src/core/logger.js';
 import { gamesRouter } from './modules/games/index.js';
@@ -8,6 +9,7 @@ import { authRouter } from './modules/Auth/index.js';
 import { userRouter } from './modules/user/index.js';
 import { favoritesRouter } from './modules/favorites/index.js';
 import cookieParser from 'cookie-parser';
+import '#src/modules/Auth/config/passport.js';
 
 const app = express();
 app.use(
@@ -18,6 +20,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json());
+app.use(passport.initialize());
 
 // Костыль для BigInt - один раз и навсегда
 BigInt.prototype.toJSON = function () {
