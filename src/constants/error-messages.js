@@ -15,6 +15,7 @@ export const ERROR_MESSAGES = {
 
   AUTH_VALIDATION: 'errors.auth.validation',
   AUTH_EMAIL_TAKEN: 'errors.auth.email_taken',
+  BASKET_ALREADY_EXISTS: 'errors.basket.already_exists',
   FAVORITE_ALREADY_EXISTS: 'errors.favorites.already_exists',
   GAME_TITLE_TAKEN: 'errors.games.title_taken',
   USER_EMAIL_TAKEN: 'errors.users.email_taken',
