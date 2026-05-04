@@ -9,6 +9,9 @@ import { authRouter } from './modules/Auth/index.js';
 import { userRouter } from './modules/user/index.js';
 import { favoritesRouter } from './modules/favorites/index.js';
 import { basketRouter } from './modules/basket/index.js';
+import { paymentsRouter } from './modules/payments/index.js';
+import { ordersRouter } from './modules/orders/index.js';
+import { libraryRouter } from './modules/library/index.js';
 import cookieParser from 'cookie-parser';
 import '#src/modules/Auth/config/passport.js';
 
@@ -33,6 +36,9 @@ app.use('/api', authRouter);
 app.use('/api', userRouter);
 app.use('/api', favoritesRouter);
 app.use('/api', basketRouter);
+app.use('/api', paymentsRouter);
+app.use('/api', ordersRouter);
+app.use('/api', libraryRouter);
 
 app.get('/', async (_, res) => {
   logger.info('GET / - Homepage request');

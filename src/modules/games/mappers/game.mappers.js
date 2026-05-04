@@ -10,8 +10,6 @@ export const formatGame = (game) => ({
     type: {
       id: gt.tags.tag_types.id,
       name: gt.tags.tag_types.name,
-      color: gt.tags.tag_types.color,
-      icon: gt.tags.tag_types.icon,
       sort_order: gt.tags.tag_types.sort_order,
     },
   })),
