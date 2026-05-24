@@ -272,7 +272,6 @@ enum payments_provider {
 }
 
 enum orders_source {
-  buy_now
   basket
 }
 

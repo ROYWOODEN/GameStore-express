@@ -6,11 +6,8 @@ const paymentGameIdSchema = z.union([
 ]);
 
 export const createCheckoutPaymentSchema = z
-  .object({
-    gameIds: z.array(paymentGameIdSchema).min(1, 'At least one game is required'),
-    source: z.enum(['buy_now', 'basket']),
-  })
-  .strict();
+  .array(paymentGameIdSchema)
+  .min(1, 'At least one game is required');
 
 export const yookassaWebhookSchema = z
   .object({
