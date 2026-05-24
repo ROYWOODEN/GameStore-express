@@ -12,6 +12,7 @@ import { basketRouter } from './modules/basket/index.js';
 import { paymentsRouter } from './modules/payments/index.js';
 import { ordersRouter } from './modules/orders/index.js';
 import { libraryRouter } from './modules/library/index.js';
+import { reviewsRouter } from './modules/reviews/index.js';
 import cookieParser from 'cookie-parser';
 import '#src/modules/Auth/config/passport.js';
 
@@ -39,6 +40,7 @@ app.use('/api', basketRouter);
 app.use('/api', paymentsRouter);
 app.use('/api', ordersRouter);
 app.use('/api', libraryRouter);
+app.use('/api', reviewsRouter);
 
 app.get('/', async (_, res) => {
   logger.info('GET / - Homepage request');

@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { formatGameList } from '#src/modules/games/mappers/game.mappers.js';
+import { attachGameRatingSummaries } from '#src/modules/games/repositories/games.repository.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import {
   createBasketRecord,
@@ -62,12 +63,14 @@ export const listCurrentUserBasket = async (userId) => {
     }
 
     seenGameIds.add(gameId);
-    items.push(formatGameList(basketRow.games));
+    items.push(basketRow.games);
     totalAmount = totalAmount.plus(basketRow.games.price);
   }
 
+  const gamesWithRating = await attachGameRatingSummaries(items);
+
   return {
-    items,
+    items: gamesWithRating.map(formatGameList),
     totalAmount: totalAmount.toFixed(2),
   };
 };

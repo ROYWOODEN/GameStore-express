@@ -1,6 +1,7 @@
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { formatGameList } from '#src/modules/games/mappers/game.mappers.js';
+import { attachGameRatingSummaries } from '#src/modules/games/repositories/games.repository.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import {
   createFavoriteRecord,
@@ -59,10 +60,11 @@ export const listCurrentUserFavorites = async (userId) => {
     }
 
     seenGameIds.add(gameId);
-    uniqueGames.push(formatGameList(favoriteRow.games));
+    uniqueGames.push(favoriteRow.games);
   }
 
-  return uniqueGames;
+  const gamesWithRating = await attachGameRatingSummaries(uniqueGames);
+  return gamesWithRating.map(formatGameList);
 };
 
 export const listCurrentUserFavoriteIds = async (userId) => {
@@ -119,7 +121,8 @@ export const addCurrentUserFavorite = async ({ userId, gameId: rawGameId }) => {
     gameId,
   });
 
-  return formatGameList(game);
+  const [gameWithRating] = await attachGameRatingSummaries([game]);
+  return formatGameList(gameWithRating);
 };
 
 export const removeCurrentUserFavorite = async ({ userId, gameId: rawGameId }) => {

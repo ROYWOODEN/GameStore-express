@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { formatGameList } from '#src/modules/games/mappers/game.mappers.js';
+import { attachGameRatingSummaries } from '#src/modules/games/repositories/games.repository.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
 import {
@@ -678,10 +679,13 @@ export const listCurrentUserPendingOrders = async ({ userId, query = {} }) => {
 
 export const listCurrentUserLibrary = async (userId) => {
   const libraryRows = await findLibraryByUserIdRecord({ userId });
+  const gamesWithRating = await attachGameRatingSummaries(
+    libraryRows.map((libraryRow) => libraryRow.games),
+  );
 
-  return libraryRows.map((libraryRow) => ({
+  return libraryRows.map((libraryRow, index) => ({
     granted_at: libraryRow.granted_at,
-    game: formatGameList(libraryRow.games),
+    game: formatGameList(gamesWithRating[index]),
   }));
 };
 
