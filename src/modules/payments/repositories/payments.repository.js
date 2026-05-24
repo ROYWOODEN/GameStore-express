@@ -22,11 +22,6 @@ const ORDER_WITH_DETAILS_INCLUDE = {
     orderBy: {
       id: 'asc',
     },
-    include: {
-      games: {
-        include: PAYMENT_GAME_INCLUDE,
-      },
-    },
   },
   payments: {
     orderBy: {
@@ -93,6 +88,73 @@ export const findBasketItemsByUserAndGameIdsRecord = async ({ userId, gameIds },
       game_id: true,
     },
   });
+};
+
+export const findWaitingOrdersByUserAndGameIdsRecord = async ({ userId, gameIds }, db = prisma) => {
+  return db.orders.findMany({
+    where: {
+      user_id: userId,
+      status: 'waiting_for_payment',
+      order_items: {
+        some: {
+          game_id: {
+            in: gameIds,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+};
+
+export const cancelOrdersWithPaymentsRecord = async ({ orderIds }, db = prisma) => {
+  if (orderIds.length === 0) {
+    return {
+      ordersCount: 0,
+      paymentsCount: 0,
+    };
+  }
+
+  const canceledAt = new Date();
+
+  const [orders, payments] = await Promise.all([
+    db.orders.updateMany({
+      where: {
+        id: {
+          in: orderIds,
+        },
+        status: 'waiting_for_payment',
+      },
+      data: {
+        status: 'canceled',
+        canceled_at: canceledAt,
+        updated_at: canceledAt,
+      },
+    }),
+    db.payments.updateMany({
+      where: {
+        order_id: {
+          in: orderIds,
+        },
+        status: {
+          in: ['pending', 'waiting_for_capture'],
+        },
+      },
+      data: {
+        status: 'canceled',
+        confirmation_url: null,
+        canceled_at: canceledAt,
+        updated_at: canceledAt,
+      },
+    }),
+  ]);
+
+  return {
+    ordersCount: orders.count,
+    paymentsCount: payments.count,
+  };
 };
 
 export const createOrderRecord = async ({ userId, source, currency, totalAmount }, db = prisma) => {

@@ -353,11 +353,9 @@ export const authenticateGoogleUser = async ({ profile, userAgent, ip }) => {
 
 export const refreshUserTokens = async ({ refreshToken }) => {
   if (!refreshToken) {
-    throw new AppError({
-      debug: 'Missing refresh token on refresh',
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
-    });
+    return {
+      accessToken: null,
+    };
   }
 
   let refreshPayload;

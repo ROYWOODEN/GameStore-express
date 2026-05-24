@@ -10,6 +10,7 @@ import {
   createPaymentRecord,
   createUserGamesRecord,
   createWebhookEventRecord,
+  cancelOrdersWithPaymentsRecord,
   deleteBasketItemsByUserAndGameIdsRecord,
   findActiveUserGamesByUserAndGameIdsRecord,
   findBasketItemsByUserAndGameIdsRecord,
@@ -19,6 +20,7 @@ import {
   findOrderByIdAndUserIdRecord,
   findOrdersByUserIdRecord,
   findPaymentByExternalPaymentIdRecord,
+  findWaitingOrdersByUserAndGameIdsRecord,
   findWebhookEventRecord,
   markWebhookEventProcessedRecord,
   updateOrderByIdRecord,
@@ -40,7 +42,7 @@ const buildOrderNotFoundError = () =>
   });
 
 const ORDER_STATUSES = new Set(['waiting_for_payment', 'paid', 'canceled', 'failed']);
-const ORDER_SOURCES = new Set(['buy_now', 'basket']);
+const ORDER_SOURCES = new Set(['basket']);
 
 const parseCheckoutGameIds = (values) => {
   const parsedIds = [];
@@ -242,7 +244,6 @@ const formatOrderDetails = (order) => {
       game_id: item.game_id,
       title_snapshot: item.title_snapshot,
       price_snapshot: item.price_snapshot,
-      game: formatGameList(item.games),
     })),
     payment:
       order.payments[0] === undefined
@@ -298,6 +299,8 @@ const syncPaymentStateFromProvider = async ({
   const normalizedStatus = mapPaymentStatus(resolvedPaymentState.status);
 
   await prisma.$transaction(async (tx) => {
+    const orderStatusBeforeSync = payment.orders.status;
+
     await updatePaymentByIdRecord(
       {
         paymentId: payment.id,
@@ -313,6 +316,14 @@ const syncPaymentStateFromProvider = async ({
     );
 
     if (normalizedStatus === 'succeeded') {
+      if (orderStatusBeforeSync !== 'waiting_for_payment') {
+        if (webhookEventId !== null) {
+          await markWebhookEventProcessedRecord({ webhookEventId }, tx);
+        }
+
+        return;
+      }
+
       await updateOrderByIdRecord(
         {
           orderId: payment.orders.id,
@@ -374,7 +385,7 @@ export const createCheckoutPayment = async ({ userId, body }) => {
     });
   }
 
-  if (parsed.data.gameIds.length === 0) {
+  if (parsed.data.length === 0) {
     throw new AppError({
       debug: 'Checkout payload contains no games',
       type: ERROR_TYPES.VALIDATION,
@@ -385,17 +396,8 @@ export const createCheckoutPayment = async ({ userId, body }) => {
 
   getYooKassaConfig();
 
-  const gameIds = parseCheckoutGameIds(parsed.data.gameIds);
-  const { source } = parsed.data;
-
-  if (source === 'buy_now' && gameIds.length !== 1) {
-    throw new AppError({
-      debug: `Buy now checkout must contain exactly one game, got ${gameIds.length}`,
-      type: ERROR_TYPES.VALIDATION,
-      message: ERROR_MESSAGES.VALIDATION_FAILED,
-      details: { fields: ['gameIds', 'source'] },
-    });
-  }
+  const gameIds = parseCheckoutGameIds(parsed.data);
+  const source = 'basket';
 
   const draftOrder = await prisma.$transaction(async (tx) => {
     const games = await findGamesByIdsRecord({ gameIds }, tx);
@@ -404,13 +406,19 @@ export const createCheckoutPayment = async ({ userId, body }) => {
     const ownedGames = await findActiveUserGamesByUserAndGameIdsRecord({ userId, gameIds }, tx);
     assertGamesNotOwned({ ownedGames });
 
-    if (source === 'basket') {
-      const basketItems = await findBasketItemsByUserAndGameIdsRecord({ userId, gameIds }, tx);
-      assertBasketContainsSelectedGames({
-        requestedGameIds: gameIds,
-        basketItems,
-      });
-    }
+    const basketItems = await findBasketItemsByUserAndGameIdsRecord({ userId, gameIds }, tx);
+    assertBasketContainsSelectedGames({
+      requestedGameIds: gameIds,
+      basketItems,
+    });
+
+    const waitingOrders = await findWaitingOrdersByUserAndGameIdsRecord({ userId, gameIds }, tx);
+    await cancelOrdersWithPaymentsRecord(
+      {
+        orderIds: waitingOrders.map((order) => order.id),
+      },
+      tx,
+    );
 
     const totalAmount = buildCheckoutAmount(games);
 

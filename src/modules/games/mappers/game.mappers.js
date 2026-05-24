@@ -22,6 +22,7 @@ export const formatGame = (game) => ({
 export const formatGameList = (game) => ({
   id: game.id,
   title: game.title,
+  description: game.description,
   price: game.price,
   tags: game.game_tags.map((gt) => ({
     name: gt.tags.name,

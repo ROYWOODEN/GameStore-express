@@ -78,7 +78,9 @@ export const refresh = async (req, res) => {
       refreshToken,
     });
 
-    res.cookie('refreshToken', nextRefreshToken, getRefreshCookieOptions(refreshTokenExpiresAt));
+    if (accessToken && nextRefreshToken && refreshTokenExpiresAt) {
+      res.cookie('refreshToken', nextRefreshToken, getRefreshCookieOptions(refreshTokenExpiresAt));
+    }
 
     logger.success('Token refresh was successful');
     return res.status(HTTP_STATUS.OK).json({
