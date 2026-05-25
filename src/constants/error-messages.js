@@ -24,6 +24,8 @@ export const ERROR_MESSAGES = {
   PAYMENT_CREATE_FAILED: 'errors.payments.create_failed',
   PAYMENT_PROVIDER_NOT_CONFIGURED: 'errors.payments.provider_not_configured',
   PAYMENT_WEBHOOK_INVALID: 'errors.payments.webhook_invalid',
+  REVIEW_ALREADY_EXISTS: 'errors.reviews.already_exists',
+  REVIEW_GAME_NOT_OWNED: 'errors.reviews.game_not_owned',
   USER_EMAIL_TAKEN: 'errors.users.email_taken',
   VALIDATION_FAILED: 'errors.validation.failed',
   FILES_REQUIRED: 'errors.validation.files_required',

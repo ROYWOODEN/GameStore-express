@@ -31,19 +31,70 @@ const GAME_DETAIL_INCLUDE = {
   },
 };
 
+const formatRatingSummary = (ratingRow) => ({
+  average:
+    ratingRow?._avg.rating === null || ratingRow?._avg.rating === undefined
+      ? null
+      : Number(Number(ratingRow._avg.rating).toFixed(1)),
+  count: ratingRow?._count.rating ?? 0,
+});
+
+export const attachGameRatingSummaries = async (games, db = prisma) => {
+  if (games.length === 0) {
+    return games;
+  }
+
+  const gameIds = games.map((game) => game.id);
+  const ratingRows = await db.game_reviews.groupBy({
+    by: ['game_id'],
+    where: {
+      game_id: {
+        in: gameIds,
+      },
+    },
+    _avg: {
+      rating: true,
+    },
+    _count: {
+      rating: true,
+    },
+  });
+
+  const ratingByGameId = new Map(
+    ratingRows.map((ratingRow) => [String(ratingRow.game_id), formatRatingSummary(ratingRow)]),
+  );
+
+  return games.map((game) => ({
+    ...game,
+    rating_summary: ratingByGameId.get(String(game.id)) ?? {
+      average: null,
+      count: 0,
+    },
+  }));
+};
+
 export const findManyGames = async () => {
-  return prisma.games.findMany({
+  const games = await prisma.games.findMany({
     include: GAME_LIST_INCLUDE,
   });
+
+  return attachGameRatingSummaries(games);
 };
 
 export const findGameById = async (id) => {
-  return prisma.games.findUnique({
+  const game = await prisma.games.findUnique({
     where: {
       id,
     },
     include: GAME_DETAIL_INCLUDE,
   });
+
+  if (!game) {
+    return null;
+  }
+
+  const [gameWithRating] = await attachGameRatingSummaries([game]);
+  return gameWithRating;
 };
 
 export const createGameWithImagesRecord = async (game, files) => {
