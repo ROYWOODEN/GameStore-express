@@ -2,7 +2,10 @@ import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { cleanupTargetUrls, cleanupUploadedFiles } from '#src/modules/files/index.js';
 import { formatGame, formatGameList } from '#src/modules/games/mappers/game.mappers.js';
+import { resolveGameTagSelection } from '#src/modules/tags/services/tags.service.js';
+import { gameTagsPayloadSchema } from '#src/modules/tags/validators/tags.schemas.js';
 import { AppError } from '#src/utils/errors/app-error.js';
+import { buildPaginationMeta } from '#src/utils/pagination/pagination.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
 import { Prisma } from '@prisma/client';
@@ -14,7 +17,11 @@ import {
   findManyGames,
   updateGameById,
 } from '../repositories/games.repository.js';
-import { createGameSchema, updateGameSchema } from '../validators/games.schemas.js';
+import {
+  createGameSchema,
+  listGamesQuerySchema,
+  updateGameSchema,
+} from '../validators/games.schemas.js';
 
 const buildGameNotFoundError = () =>
   new AppError({
@@ -23,6 +30,27 @@ const buildGameNotFoundError = () =>
     message: ERROR_MESSAGES.NOT_FOUND,
     details: { resource: 'game' },
   });
+
+const parseGameEntityId = (value, field = 'gameId') => {
+  try {
+    const id = BigInt(value);
+
+    if (id <= 0n) {
+      throw new Error('Id must be positive');
+    }
+
+    return id;
+  } catch {
+    throw new AppError({
+      debug: `Invalid ${field}: ${value}`,
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.VALIDATION_FAILED,
+      details: {
+        fields: [field],
+      },
+    });
+  }
+};
 
 const throwTitleConflictIfNeeded = (error) => {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
@@ -55,13 +83,53 @@ const validateCreateFiles = (files) => {
   }
 };
 
-export const listGames = async () => {
-  const games = await findManyGames();
-  return games.map(formatGameList);
+const normalizeTagIdsBody = (body) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return body;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(body, 'tagIds[]')) {
+    return body;
+  }
+
+  const normalized = { ...body };
+
+  if (!Object.prototype.hasOwnProperty.call(normalized, 'tagIds')) {
+    normalized.tagIds = normalized['tagIds[]'];
+  }
+
+  delete normalized['tagIds[]'];
+  return normalized;
+};
+
+export const listGames = async (query = {}) => {
+  const parsed = listGamesQuerySchema.safeParse(normalizeTagIdsBody(query));
+
+  if (!parsed.success) {
+    throw new AppError({
+      debug: 'Invalid games query',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.VALIDATION_FAILED,
+      details: mapZodIssues(parsed.error.issues),
+    });
+  }
+
+  const { items, total } = await findManyGames(parsed.data);
+
+  return {
+    items: items.map(formatGameList),
+    meta: buildPaginationMeta({
+      page: parsed.data.page,
+      limit: parsed.data.limit,
+      total,
+      count: items.length,
+    }),
+  };
 };
 
 export const getGame = async (id) => {
-  const game = await findGameById(id);
+  const gameId = parseGameEntityId(id);
+  const game = await findGameById(gameId);
 
   if (!game) {
     throw buildGameNotFoundError();
@@ -71,7 +139,7 @@ export const getGame = async (id) => {
 };
 
 export const createGame = async ({ body, files }) => {
-  const parsed = createGameSchema.safeParse(body);
+  const parsed = createGameSchema.safeParse(normalizeTagIdsBody(body));
 
   if (!parsed.success) {
     cleanupUploadedFiles(files, {
@@ -90,6 +158,7 @@ export const createGame = async ({ body, files }) => {
   validateCreateFiles(files);
 
   try {
+    await resolveGameTagSelection(parsed.data.tagIds);
     return await createGameWithImagesRecord(parsed.data, files);
   } catch (error) {
     cleanupUploadedFiles(files, {
@@ -98,6 +167,10 @@ export const createGame = async ({ body, files }) => {
     });
 
     throwTitleConflictIfNeeded(error);
+
+    if (error instanceof AppError) {
+      throw error;
+    }
 
     throw new AppError({
       debug: `Failed to create game in DB: ${error?.message || 'unknown error'}`,
@@ -108,21 +181,22 @@ export const createGame = async ({ body, files }) => {
 };
 
 export const removeGame = async (id) => {
-  const game = await findGameById(id);
+  const gameId = parseGameEntityId(id);
+  const game = await findGameById(gameId);
 
   if (!game) {
     throw buildGameNotFoundError();
   }
 
-  const images = await findGameImagesByGameId(id);
-  await deleteGameById(id);
+  const images = await findGameImagesByGameId(gameId);
+  await deleteGameById(gameId);
 
   cleanupTargetUrls(
     images.map((image) => image.url),
     'game_images',
     {
       scope: 'games.delete',
-      gameID: id,
+      gameID: String(gameId),
     },
   );
 
@@ -130,7 +204,8 @@ export const removeGame = async (id) => {
 };
 
 export const patchGame = async (id, body) => {
-  const parsed = updateGameSchema.safeParse(body);
+  const gameId = parseGameEntityId(id);
+  const parsed = updateGameSchema.safeParse(normalizeTagIdsBody(body));
 
   if (!parsed.success) {
     throw new AppError({
@@ -141,9 +216,9 @@ export const patchGame = async (id, body) => {
     });
   }
 
-  const gameData = parsed.data;
+  const { tagIds, ...gameData } = parsed.data;
 
-  if (Object.keys(gameData).length === 0) {
+  if (Object.keys(gameData).length === 0 && tagIds === undefined) {
     throw new AppError({
       debug: 'No fields to update',
       type: ERROR_TYPES.VALIDATION,
@@ -152,18 +227,50 @@ export const patchGame = async (id, body) => {
     });
   }
 
-  const game = await findGameById(id);
+  const game = await findGameById(gameId);
 
   if (!game) {
     throw buildGameNotFoundError();
   }
 
+  if (tagIds !== undefined) {
+    await resolveGameTagSelection(tagIds);
+  }
+
   try {
-    await updateGameById(id, gameData);
+    await updateGameById(gameId, gameData, { tagIds });
   } catch (error) {
     throwTitleConflictIfNeeded(error);
     throw error;
   }
 
-  return gameData;
+  return {
+    ...gameData,
+    ...(tagIds !== undefined ? { tagIds } : {}),
+  };
+};
+
+export const replaceGameTags = async (id, body) => {
+  const gameId = parseGameEntityId(id);
+  const parsed = gameTagsPayloadSchema.safeParse(normalizeTagIdsBody(body));
+
+  if (!parsed.success) {
+    throw new AppError({
+      debug: 'Invalid game tags payload',
+      type: ERROR_TYPES.VALIDATION,
+      message: ERROR_MESSAGES.VALIDATION_FAILED,
+      details: mapZodIssues(parsed.error.issues),
+    });
+  }
+
+  const game = await findGameById(gameId);
+
+  if (!game) {
+    throw buildGameNotFoundError();
+  }
+
+  await resolveGameTagSelection(parsed.data.tagIds);
+  await updateGameById(gameId, {}, { tagIds: parsed.data.tagIds });
+
+  return getGame(gameId);
 };

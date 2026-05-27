@@ -7,6 +7,7 @@ import {
   handleCreateGame,
   handleDeleteGame,
   handleUpdateGame,
+  handleReplaceGameTags,
 } from '#src/modules/games/controllers/games.controller.js';
 import {
   handleAddGameImages,
@@ -32,6 +33,7 @@ gamesRouter.post(
 );
 gamesRouter.delete('/games/:id/images/:imageId', ...authorize('admin'), handleDeleteGameImage);
 gamesRouter.patch('/games/:id/images/order', ...authorize('admin'), handleReorderGameImages);
+gamesRouter.patch('/games/:id/tags', ...authorize('admin'), handleReplaceGameTags);
 gamesRouter.delete('/games/:id', ...authorize('admin'), handleDeleteGame);
 gamesRouter.patch('/games/:id', ...authorize('admin'), handleUpdateGame);
 
