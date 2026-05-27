@@ -70,5 +70,9 @@ export const extractAccessToken = (req) => {
 };
 
 export const getRefreshToken = (req) => {
-  return req.cookies?.refreshToken ?? null;
+  const token = req.cookies?.refreshToken;
+  if (typeof token !== 'string' || token.trim() === '') {
+    return null;
+  }
+  return token;
 };

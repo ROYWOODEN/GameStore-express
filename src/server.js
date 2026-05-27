@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { app } from './app.js';
 import { prisma } from '#src/core/prisma.js';
 import { logger } from '#src/core/logger.js';

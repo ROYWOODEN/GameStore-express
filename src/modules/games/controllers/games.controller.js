@@ -6,19 +6,18 @@ import {
   listGames,
   patchGame,
   removeGame,
+  replaceGameTags,
 } from '../services/games.service.js';
 
-export const handleListGames = async (_, res) => {
+export const handleListGames = async (req, res) => {
   logger.info('GET /api/games - List games');
-  const games = await listGames();
+  const result = await listGames(req.query);
 
-  logger.info('Games fetched', { count: games.length });
+  logger.info('Games fetched', { count: result.meta.count, total: result.meta.total });
   return res.status(HTTP_STATUS.OK).json({
     success: true,
-    data: games,
-    meta: {
-      count: games.length,
-    },
+    data: result.items,
+    meta: result.meta,
   });
 };
 
@@ -66,4 +65,17 @@ export const handleUpdateGame = async (req, res) => {
 
   logger.success('Game updated', { gameID: id, fields: Object.keys(gameData) });
   return res.status(HTTP_STATUS.NO_CONTENT).json();
+};
+
+export const handleReplaceGameTags = async (req, res) => {
+  const { id } = req.params;
+  logger.info(`PATCH /api/games/${id}/tags - Replace game tags`);
+
+  const game = await replaceGameTags(id, req.body);
+
+  logger.success('Game tags replaced', { gameID: id });
+  return res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: game,
+  });
 };
