@@ -53,11 +53,8 @@ model games {
   basket       basket[]
   favourites   favourites[]
   game_images  game_images[]
-  game_reviews game_reviews[]
   game_tags    game_tags[]
   game_videos  game_videos[]
-  order_items  order_items[]
-  user_games   user_games[]
 }
 
 model tags {
@@ -81,9 +78,6 @@ model users {
   created_at     DateTime         @default(now()) @db.Timestamp(0)
   basket         basket[]
   favourites     favourites[]
-  game_reviews   game_reviews[]
-  orders         orders[]
-  user_games     user_games[]
   user_providers user_providers[]
   user_sessions  user_sessions[]
   roles          roles            @relation(fields: [role_id], references: [id], onDelete: Cascade, map: "users_ibfk_1")
@@ -103,22 +97,6 @@ model game_images {
   @@index([game_id], map: "game_id")
 }
 
-model game_reviews {
-  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  game_id    BigInt   @db.UnsignedBigInt
-  user_id    BigInt   @db.UnsignedBigInt
-  rating     Int      @db.UnsignedTinyInt
-  text       String?  @db.Text
-  created_at DateTime @default(now()) @db.DateTime(0)
-  updated_at DateTime @default(now()) @db.DateTime(0)
-  games      games    @relation(fields: [game_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "game_reviews_ibfk_1")
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "game_reviews_ibfk_2")
-
-  @@unique([user_id, game_id], map: "uq_game_reviews_user_game")
-  @@index([game_id], map: "idx_game_reviews_game_id")
-  @@index([user_id], map: "idx_game_reviews_user_id")
-}
-
 model game_videos {
   id         BigInt   @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
   url        String   @db.Text
@@ -134,6 +112,8 @@ model game_videos {
 model tag_types {
   id         BigInt @unique(map: "id") @default(autoincrement()) @db.UnsignedBigInt
   name       String @db.VarChar(50)
+  color      String @db.VarChar(7)
+  icon       String @db.VarChar(50)
   sort_order Int    @db.TinyInt
   tags       tags[]
 }
@@ -186,122 +166,4 @@ model user_sessions {
   @@index([expires_at], map: "idx_user_sessions_expires_at")
   @@index([revoked_at], map: "idx_user_sessions_revoked_at")
   @@index([user_id], map: "idx_user_sessions_user_id")
-}
-
-model order_items {
-  id             BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
-  order_id       BigInt      @db.UnsignedBigInt
-  game_id        BigInt      @db.UnsignedBigInt
-  title_snapshot String      @db.VarChar(255)
-  price_snapshot Decimal     @db.Decimal(10, 2)
-  created_at     DateTime    @default(now()) @db.DateTime(0)
-  games          games       @relation(fields: [game_id], references: [id], map: "fk_order_items_game")
-  orders         orders      @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_order_items_order")
-  user_games     user_games?
-
-  @@unique([order_id, game_id], map: "uq_order_items_order_game")
-  @@index([game_id], map: "idx_order_items_game_id")
-}
-
-model orders {
-  id           BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  user_id      BigInt        @db.UnsignedBigInt
-  status       orders_status @default(waiting_for_payment)
-  source       orders_source
-  currency     String        @default("RUB") @db.Char(3)
-  total_amount Decimal       @db.Decimal(10, 2)
-  paid_at      DateTime?     @db.DateTime(0)
-  canceled_at  DateTime?     @db.DateTime(0)
-  created_at   DateTime      @default(now()) @db.DateTime(0)
-  updated_at   DateTime      @default(now()) @db.DateTime(0)
-  order_items  order_items[]
-  users        users         @relation(fields: [user_id], references: [id], map: "fk_orders_user")
-  payments     payments[]
-
-  @@index([status], map: "idx_orders_status")
-  @@index([user_id], map: "idx_orders_user_id")
-}
-
-model payment_webhook_events {
-  id                 BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
-  provider           payment_webhook_events_provider @default(yookassa)
-  event_type         String                          @db.VarChar(100)
-  external_object_id String                          @db.VarChar(64)
-  payload            Json
-  is_processed       Boolean                         @default(false)
-  processed_at       DateTime?                       @db.DateTime(0)
-  created_at         DateTime                        @default(now()) @db.DateTime(0)
-
-  @@unique([provider, event_type, external_object_id], map: "uq_payment_webhook_event")
-  @@index([is_processed], map: "idx_payment_webhook_processed")
-}
-
-model payments {
-  id                  BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  order_id            BigInt            @db.UnsignedBigInt
-  provider            payments_provider @default(yookassa)
-  external_payment_id String?           @unique(map: "uq_payments_external_payment_id") @db.VarChar(64)
-  idempotence_key     String            @unique(map: "uq_payments_idempotence_key") @db.Char(36)
-  status              payments_status   @default(pending)
-  amount              Decimal           @db.Decimal(10, 2)
-  currency            String            @default("RUB") @db.Char(3)
-  confirmation_url    String?           @db.Text
-  paid_at             DateTime?         @db.DateTime(0)
-  canceled_at         DateTime?         @db.DateTime(0)
-  raw_payload         Json?
-  created_at          DateTime          @default(now()) @db.DateTime(0)
-  updated_at          DateTime          @default(now()) @db.DateTime(0)
-  orders              orders            @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_payments_order")
-
-  @@index([order_id], map: "idx_payments_order_id")
-  @@index([status], map: "idx_payments_status")
-}
-
-model user_games {
-  id            BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
-  user_id       BigInt            @db.UnsignedBigInt
-  game_id       BigInt            @db.UnsignedBigInt
-  order_item_id BigInt            @unique(map: "uq_user_games_order_item") @db.UnsignedBigInt
-  status        user_games_status @default(active)
-  granted_at    DateTime          @default(now()) @db.DateTime(0)
-  revoked_at    DateTime?         @db.DateTime(0)
-  games         games             @relation(fields: [game_id], references: [id], map: "fk_user_games_game")
-  order_items   order_items       @relation(fields: [order_item_id], references: [id], map: "fk_user_games_order_item")
-  users         users             @relation(fields: [user_id], references: [id], map: "fk_user_games_user")
-
-  @@unique([user_id, game_id], map: "uq_user_games_user_game")
-  @@index([game_id], map: "idx_user_games_game_id")
-  @@index([user_id], map: "idx_user_games_user_id")
-}
-
-enum payment_webhook_events_provider {
-  yookassa
-}
-
-enum orders_status {
-  waiting_for_payment
-  paid
-  canceled
-  failed
-}
-
-enum payments_provider {
-  yookassa
-}
-
-enum orders_source {
-  basket
-}
-
-enum user_games_status {
-  active
-  revoked
-}
-
-enum payments_status {
-  pending
-  waiting_for_capture
-  succeeded
-  canceled
-  failed
 }
