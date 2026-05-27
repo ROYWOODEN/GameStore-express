@@ -1,26 +1,18 @@
 import { ERROR_MESSAGES } from '#src/constants/error-messages.js';
 import { ERROR_TYPES, HTTP_STATUS } from '#src/constants/http-statuses.js';
 import { prisma } from '#src/core/prisma.js';
-import { mapUserProfile } from '#src/modules/user/mappers/user.mapper.js';
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
 import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
-  createOAuthUserRecord,
   createUserRecord,
-  createUserProviderRecord,
   createUserSessionRecord,
-  findUserByEmailRecord,
-  findUserProviderByProviderUserIdRecord,
   getUserSessionById,
   loginUserRecord,
   revokeUserSessionRecord,
-  updateUserAvatarIfMissingRecord,
-  updateUserProviderRecord,
   updateUserSessionRecord,
-  upsertAuthProviderRecord,
 } from '../repositories/auth.repository.js';
 import { compareRefreshToken } from '../utils/refresh-token-hash.js';
 import { verifyToken } from '../utils/tokens.js';
@@ -28,114 +20,12 @@ import { getAbsoluteSessionExpiresAt } from '../utils/session-expiration.js';
 import { generateSessionTokens } from '../utils/session-tokens.js';
 import { loginSchema, registerSchema } from '../validators/auth.schemas.js';
 
-const GOOGLE_PROVIDER = {
-  code: 'google',
-  name: 'Google',
-};
-
-const normalizeOAuthUserName = ({ displayName, givenName, email }) => {
-  const candidates = [givenName, displayName, email?.split('@')[0], 'Google User'];
-
-  for (const candidate of candidates) {
-    const normalized = String(candidate ?? '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (normalized) {
-      return normalized.slice(0, 20);
-    }
-  }
-
-  return 'Google User';
-};
-
-const normalizeGoogleProfile = (profile) => {
-  const providerUserId = String(profile?.id ?? '').trim();
-  const providerEmail =
-    profile?.emails
-      ?.find((item) => item?.value)
-      ?.value?.trim()
-      .toLowerCase() ?? '';
-  const avatarUrl = profile?.photos?.find((item) => item?.value)?.value?.trim() ?? null;
-  const emailVerified = profile?._json?.email_verified;
-
-  if (!providerUserId) {
-    throw new AppError({
-      debug: 'Google OAuth profile is missing provider user id',
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_OAUTH_FAILED,
-      statusCode: HTTP_STATUS.UNAUTHORIZED,
-    });
-  }
-
-  if (!providerEmail) {
-    throw new AppError({
-      debug: 'Google OAuth profile is missing email',
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_OAUTH_FAILED,
-      statusCode: HTTP_STATUS.UNAUTHORIZED,
-      details: { fields: ['email'] },
-    });
-  }
-
-  if (emailVerified === false) {
-    throw new AppError({
-      debug: `Google OAuth email is not verified for ${providerEmail}`,
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_OAUTH_FAILED,
-      statusCode: HTTP_STATUS.UNAUTHORIZED,
-      details: { fields: ['email'] },
-    });
-  }
+const buildResponseUser = (createdUser) => {
+  const { roles, ...userData } = createdUser;
 
   return {
-    providerUserId,
-    email: providerEmail,
-    providerEmail,
-    avatarUrl,
-    name: normalizeOAuthUserName({
-      displayName: profile?.displayName,
-      givenName: profile?.name?.givenName,
-      email: providerEmail,
-    }),
-  };
-};
-
-const createSessionBundle = async ({ userId, userAgent, ip }, tx) => {
-  const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
-
-  const session = await createUserSessionRecord(
-    {
-      userId,
-      refreshTokenHash: '',
-      userAgent,
-      ip,
-      expiresAt: new Date(),
-      absoluteExpiresAt: absoluteSessionExpiresAt,
-    },
-    tx,
-  );
-
-  const { accessToken, refreshToken, refreshTokenHash, refreshTokenExpiresAt } =
-    await generateSessionTokens({
-      userId,
-      sessionId: session.id,
-      absoluteExpiresAt: absoluteSessionExpiresAt,
-    });
-
-  await updateUserSessionRecord(
-    {
-      sessionId: session.id,
-      refreshTokenHash,
-      expiresAt: refreshTokenExpiresAt,
-    },
-    tx,
-  );
-
-  return {
-    accessToken,
-    refreshToken,
-    refreshTokenExpiresAt,
+    ...userData,
+    role: roles.name,
   };
 };
 
@@ -182,19 +72,42 @@ export const registerUser = async ({ body, userAgent, ip }) => {
       throw error;
     }
 
-    const responseUser = mapUserProfile(createdUser);
-    const sessionBundle = await createSessionBundle(
+    const responseUser = buildResponseUser(createdUser);
+    const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
+
+    const session = await createUserSessionRecord(
       {
         userId: responseUser.id,
+        refreshTokenHash: '',
         userAgent,
         ip,
+        expiresAt: new Date(),
+        absoluteExpiresAt: absoluteSessionExpiresAt,
+      },
+      tx,
+    );
+
+    const { accessToken, refreshToken, refreshTokenHash, refreshTokenExpiresAt } =
+      await generateSessionTokens({
+        userId: responseUser.id,
+        sessionId: session.id,
+        absoluteExpiresAt: absoluteSessionExpiresAt,
+      });
+
+    await updateUserSessionRecord(
+      {
+        sessionId: session.id,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
       },
       tx,
     );
 
     return {
       user: responseUser,
-      ...sessionBundle,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresAt,
     };
   });
 };
@@ -224,14 +137,6 @@ export const loginUser = async ({ body, userAgent, ip }) => {
 
   const { password_hash, ...resultUser } = user;
 
-  if (!password_hash) {
-    throw new AppError({
-      debug: `User ${email} has no password hash and cannot use password login`,
-      type: ERROR_TYPES.AUTH,
-      message: ERROR_MESSAGES.AUTH_INVALID_CREDENTIALS,
-    });
-  }
-
   const isValidPassword = await bcrypt.compare(password, password_hash);
 
   if (!isValidPassword) {
@@ -241,121 +146,54 @@ export const loginUser = async ({ body, userAgent, ip }) => {
       message: ERROR_MESSAGES.AUTH_INVALID_CREDENTIALS,
     });
   }
-  const responseUser = mapUserProfile(resultUser);
+  const responseUser = buildResponseUser(resultUser);
+  const absoluteSessionExpiresAt = getAbsoluteSessionExpiresAt();
 
   return prisma.$transaction(async (tx) => {
-    const sessionBundle = await createSessionBundle(
+    const session = await createUserSessionRecord(
       {
         userId: responseUser.id,
+        refreshTokenHash: '',
         userAgent,
         ip,
+        expiresAt: new Date(),
+        absoluteExpiresAt: absoluteSessionExpiresAt,
       },
       tx,
     );
 
-    return {
-      user: responseUser,
-      ...sessionBundle,
-    };
-  });
-};
-
-export const authenticateGoogleUser = async ({ profile, userAgent, ip }) => {
-  const googleProfile = normalizeGoogleProfile(profile);
-
-  return prisma.$transaction(async (tx) => {
-    const provider = await upsertAuthProviderRecord(GOOGLE_PROVIDER, tx);
-
-    if (!provider.is_active) {
-      throw new AppError({
-        debug: 'Google auth provider is disabled',
-        type: ERROR_TYPES.AUTH,
-        message: ERROR_MESSAGES.AUTH_FORBIDDEN,
-        statusCode: HTTP_STATUS.FORBIDDEN,
+    const { accessToken, refreshToken, refreshTokenHash, refreshTokenExpiresAt } =
+      await generateSessionTokens({
+        userId: responseUser.id,
+        sessionId: session.id,
+        absoluteExpiresAt: absoluteSessionExpiresAt,
       });
-    }
 
-    const existingProviderLink = await findUserProviderByProviderUserIdRecord(
+    await updateUserSessionRecord(
       {
-        providerId: provider.id,
-        providerUserId: googleProfile.providerUserId,
-      },
-      tx,
-    );
-
-    let userRecord = existingProviderLink?.users ?? null;
-
-    if (existingProviderLink) {
-      if (existingProviderLink.provider_email !== googleProfile.providerEmail) {
-        await updateUserProviderRecord(
-          {
-            providerUserId: googleProfile.providerUserId,
-            providerEmail: googleProfile.providerEmail,
-          },
-          tx,
-        );
-      }
-    } else {
-      userRecord = await findUserByEmailRecord({ email: googleProfile.email }, tx);
-
-      if (!userRecord) {
-        userRecord = await createOAuthUserRecord(
-          {
-            name: googleProfile.name,
-            email: googleProfile.email,
-            avatarUrl: googleProfile.avatarUrl,
-          },
-          tx,
-        );
-      }
-
-      await createUserProviderRecord(
-        {
-          userId: userRecord.id,
-          providerId: provider.id,
-          providerUserId: googleProfile.providerUserId,
-          providerEmail: googleProfile.providerEmail,
-        },
-        tx,
-      );
-    }
-
-    if (googleProfile.avatarUrl) {
-      await updateUserAvatarIfMissingRecord(
-        {
-          userId: userRecord.id,
-          avatarUrl: googleProfile.avatarUrl,
-        },
-        tx,
-      );
-    }
-
-    const responseUser = mapUserProfile({
-      ...userRecord,
-      avatar_url: userRecord.avatar_url ?? googleProfile.avatarUrl,
-    });
-
-    const sessionBundle = await createSessionBundle(
-      {
-        userId: userRecord.id,
-        userAgent,
-        ip,
+        sessionId: session.id,
+        refreshTokenHash,
+        expiresAt: refreshTokenExpiresAt,
       },
       tx,
     );
 
     return {
       user: responseUser,
-      ...sessionBundle,
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresAt,
     };
   });
 };
 
 export const refreshUserTokens = async ({ refreshToken }) => {
   if (!refreshToken) {
-    return {
-      accessToken: null,
-    };
+    throw new AppError({
+      debug: 'Missing refresh token on refresh',
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_REFRESH_FAILED,
+    });
   }
 
   let refreshPayload;
