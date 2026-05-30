@@ -153,7 +153,7 @@ export const getCurrentUserGameReview = async ({ userId, gameId: rawGameId }) =>
   });
 
   if (!review) {
-    throw buildReviewNotFoundError();
+    return null;
   }
 
   return formatReview(review);
