@@ -19,6 +19,7 @@ import {
   findLibraryByUserIdRecord,
   findLibraryGameIdsByUserIdRecord,
   findOrderByIdAndUserIdRecord,
+  findOrderItemsByOrderIdRecord,
   findOrdersByUserIdRecord,
   findPaymentByExternalPaymentIdRecord,
   findWaitingOrdersByUserAndGameIdsRecord,
@@ -395,8 +396,6 @@ export const createCheckoutPayment = async ({ userId, body }) => {
     });
   }
 
-  getYooKassaConfig();
-
   const gameIds = parseCheckoutGameIds(parsed.data);
   const source = 'basket';
 
@@ -422,6 +421,7 @@ export const createCheckoutPayment = async ({ userId, body }) => {
     );
 
     const totalAmount = buildCheckoutAmount(games);
+    const paidAt = totalAmount.equals(0) ? new Date() : null;
 
     const order = await createOrderRecord(
       {
@@ -429,6 +429,7 @@ export const createCheckoutPayment = async ({ userId, body }) => {
         source,
         currency: 'RUB',
         totalAmount: totalAmount.toFixed(2),
+        ...(paidAt === null ? {} : { status: 'paid', paidAt }),
       },
       tx,
     );
@@ -444,6 +445,36 @@ export const createCheckoutPayment = async ({ userId, body }) => {
       },
       tx,
     );
+
+    if (paidAt !== null) {
+      const orderItems = await findOrderItemsByOrderIdRecord({ orderId: order.id }, tx);
+
+      await createUserGamesRecord(
+        {
+          userId,
+          orderItems,
+        },
+        tx,
+      );
+
+      await deleteBasketItemsByUserAndGameIdsRecord(
+        {
+          userId,
+          gameIds,
+        },
+        tx,
+      );
+
+      return {
+        orderId: order.id,
+        paymentId: null,
+        externalPaymentId: null,
+        status: 'succeeded',
+        confirmationUrl: null,
+        amount: totalAmount.toFixed(2),
+        currency: 'RUB',
+      };
+    }
 
     const payment = await createPaymentRecord(
       {
@@ -462,7 +493,13 @@ export const createCheckoutPayment = async ({ userId, body }) => {
     };
   });
 
+  if (draftOrder.paymentId === null) {
+    return draftOrder;
+  }
+
   try {
+    getYooKassaConfig();
+
     const { payment, idempotenceKey } = await createYooKassaPayment({
       orderId: draftOrder.orderId,
       paymentId: draftOrder.paymentId,

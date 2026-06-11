@@ -157,13 +157,18 @@ export const cancelOrdersWithPaymentsRecord = async ({ orderIds }, db = prisma) 
   };
 };
 
-export const createOrderRecord = async ({ userId, source, currency, totalAmount }, db = prisma) => {
+export const createOrderRecord = async (
+  { userId, source, currency, totalAmount, status, paidAt },
+  db = prisma,
+) => {
   return db.orders.create({
     data: {
       user_id: userId,
       source,
       currency,
       total_amount: totalAmount,
+      ...(status === undefined ? {} : { status }),
+      ...(paidAt === undefined ? {} : { paid_at: paidAt }),
       updated_at: new Date(),
     },
   });
@@ -177,6 +182,17 @@ export const createOrderItemsRecord = async ({ orderId, items }, db = prisma) =>
       title_snapshot: item.titleSnapshot,
       price_snapshot: item.priceSnapshot,
     })),
+  });
+};
+
+export const findOrderItemsByOrderIdRecord = async ({ orderId }, db = prisma) => {
+  return db.order_items.findMany({
+    where: {
+      order_id: orderId,
+    },
+    orderBy: {
+      id: 'asc',
+    },
   });
 };
 
