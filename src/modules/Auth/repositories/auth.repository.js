@@ -4,11 +4,21 @@ const USER_PROFILE_SELECT = {
   id: true,
   name: true,
   email: true,
+  password_hash: true,
   avatar_url: true,
   created_at: true,
   roles: {
     select: {
       name: true,
+    },
+  },
+  user_providers: {
+    select: {
+      providers: {
+        select: {
+          code: true,
+        },
+      },
     },
   },
 };
@@ -142,6 +152,15 @@ export const findUserByEmailRecord = async ({ email }, db = prisma) => {
   return db.users.findUnique({
     where: {
       email,
+    },
+    select: USER_PROFILE_SELECT,
+  });
+};
+
+export const findUserByIdRecord = async ({ userId }, db = prisma) => {
+  return db.users.findUnique({
+    where: {
+      id: userId,
     },
     select: USER_PROFILE_SELECT,
   });

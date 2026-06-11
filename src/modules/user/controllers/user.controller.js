@@ -5,6 +5,7 @@ import {
   deleteCurrentUser,
   deleteCurrentUserAvatar,
   getCurrentUser,
+  unlinkCurrentUserProvider,
   updateCurrentUser,
   updateCurrentUserAvatar,
 } from '../services/user.services.js';
@@ -39,6 +40,31 @@ export const handleUpdateCurrentUser = async (req, res) => {
   logger.success('Current user updated', {
     userId: String(userId),
     fields: Object.keys(req.body ?? {}),
+  });
+
+  return res.status(HTTP_STATUS.OK).json({
+    success: true,
+    data: user,
+  });
+};
+
+export const handleUnlinkCurrentUserProvider = async (req, res) => {
+  const userId = req.auth.userId;
+  const providerCode = String(req.params.provider ?? '');
+
+  logger.info('DELETE /api/users/me/providers/:provider - Unlink current user provider', {
+    providerCode,
+    userId: String(userId),
+  });
+
+  const user = await unlinkCurrentUserProvider({
+    providerCode,
+    userId,
+  });
+
+  logger.success('Current user provider unlinked', {
+    providerCode,
+    userId: String(userId),
   });
 
   return res.status(HTTP_STATUS.OK).json({

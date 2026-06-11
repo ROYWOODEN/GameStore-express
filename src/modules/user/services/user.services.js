@@ -9,9 +9,11 @@ import {
 import { AppError } from '#src/utils/errors/app-error.js';
 import { getPrismaTargetFields } from '#src/utils/prisma/get-prisma-target-fields.js';
 import { mapZodIssues } from '#src/utils/zod/map-zod-issues.js';
+import bcrypt from 'bcryptjs';
 import { mapUserProfile } from '../mappers/user.mapper.js';
 import {
   deleteUserByIdRecord,
+  deleteUserProviderByCodeRecord,
   findUserProfileByIdRecord,
   updateUserProfileByIdRecord,
 } from '../repositories/user.repository.js';
@@ -67,7 +69,12 @@ export const updateCurrentUser = async ({ userId, body }) => {
     });
   }
 
-  const userData = parsed.data;
+  const { password, ...profileData } = parsed.data;
+  const userData = { ...profileData };
+
+  if (password) {
+    userData.password_hash = await bcrypt.hash(password, 10);
+  }
 
   if (Object.keys(userData).length === 0) {
     throw new AppError({
@@ -94,6 +101,42 @@ export const updateCurrentUser = async ({ userId, body }) => {
   } catch (error) {
     throwEmailConflictIfNeeded(error);
     throw error;
+  }
+
+  return mapUserProfile(updatedUser);
+};
+
+export const unlinkCurrentUserProvider = async ({ userId, providerCode }) => {
+  const existingUser = await findUserProfileByIdRecord({ userId });
+
+  if (!existingUser) {
+    throw buildUserNotFoundError();
+  }
+
+  const linkedProviders = (existingUser.user_providers ?? [])
+    .map((item) => item.providers?.code)
+    .filter((code) => typeof code === 'string');
+
+  if (!linkedProviders.includes(providerCode)) {
+    return mapUserProfile(existingUser);
+  }
+
+  if (!existingUser.password_hash) {
+    throw new AppError({
+      debug: `User ${String(userId)} tried to unlink ${providerCode} without password auth`,
+      type: ERROR_TYPES.AUTH,
+      message: ERROR_MESSAGES.AUTH_PASSWORD_REQUIRED,
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      details: { fields: ['password'] },
+    });
+  }
+
+  await deleteUserProviderByCodeRecord({ userId, providerCode });
+
+  const updatedUser = await findUserProfileByIdRecord({ userId });
+
+  if (!updatedUser) {
+    throw buildUserNotFoundError();
   }
 
   return mapUserProfile(updatedUser);

@@ -5,6 +5,7 @@ import {
   handleDeleteCurrentUser,
   handleDeleteCurrentUserAvatar,
   handleGetCurrentUser,
+  handleUnlinkCurrentUserProvider,
   handleUpdateCurrentUser,
   handleUpdateCurrentUserAvatar,
 } from '../controllers/user.controller.js';
@@ -13,6 +14,7 @@ const userRouter = Router();
 
 userRouter.get('/users/me', ...authorize(), handleGetCurrentUser);
 userRouter.patch('/users/me', ...authorize(), handleUpdateCurrentUser);
+userRouter.delete('/users/me/providers/:provider', ...authorize(), handleUnlinkCurrentUserProvider);
 userRouter.patch(
   '/users/me/avatar',
   ...authorize(),
