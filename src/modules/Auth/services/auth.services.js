@@ -12,6 +12,7 @@ import {
   createUserRecord,
   createUserProviderRecord,
   createUserSessionRecord,
+  findUserByIdRecord,
   findUserByEmailRecord,
   findUserProviderByProviderUserIdRecord,
   getUserSessionById,
@@ -330,14 +331,128 @@ export const authenticateGoogleUser = async ({ profile, userAgent, ip }) => {
       );
     }
 
+    const refreshedUserRecord =
+      (await findUserByIdRecord({ userId: userRecord.id }, tx)) ?? userRecord;
+
     const responseUser = mapUserProfile({
-      ...userRecord,
-      avatar_url: userRecord.avatar_url ?? googleProfile.avatarUrl,
+      ...refreshedUserRecord,
+      avatar_url: refreshedUserRecord.avatar_url ?? googleProfile.avatarUrl,
     });
 
     const sessionBundle = await createSessionBundle(
       {
         userId: userRecord.id,
+        userAgent,
+        ip,
+      },
+      tx,
+    );
+
+    return {
+      user: responseUser,
+      ...sessionBundle,
+    };
+  });
+};
+
+export const linkGoogleUser = async ({ currentUserId, profile, userAgent, ip }) => {
+  const googleProfile = normalizeGoogleProfile(profile);
+
+  return prisma.$transaction(async (tx) => {
+    const provider = await upsertAuthProviderRecord(GOOGLE_PROVIDER, tx);
+
+    if (!provider.is_active) {
+      throw new AppError({
+        debug: 'Google auth provider is disabled',
+        type: ERROR_TYPES.AUTH,
+        message: ERROR_MESSAGES.AUTH_FORBIDDEN,
+        statusCode: HTTP_STATUS.FORBIDDEN,
+      });
+    }
+
+    const currentUser = await findUserByIdRecord({ userId: currentUserId }, tx);
+
+    if (!currentUser) {
+      throw new AppError({
+        debug: `User ${String(currentUserId)} was not found during Google link`,
+        type: ERROR_TYPES.NOT_FOUND,
+        message: ERROR_MESSAGES.NOT_FOUND,
+        details: { resource: 'user' },
+      });
+    }
+
+    const existingProviderLink = await findUserProviderByProviderUserIdRecord(
+      {
+        providerId: provider.id,
+        providerUserId: googleProfile.providerUserId,
+      },
+      tx,
+    );
+
+    if (existingProviderLink && String(existingProviderLink.user_id) !== String(currentUserId)) {
+      throw new AppError({
+        debug: `Google provider user ${googleProfile.providerUserId} is already linked`,
+        type: ERROR_TYPES.AUTH,
+        message: ERROR_MESSAGES.AUTH_PROVIDER_ALREADY_LINKED,
+        statusCode: HTTP_STATUS.CONFLICT,
+      });
+    }
+
+    if (existingProviderLink) {
+      if (existingProviderLink.provider_email !== googleProfile.providerEmail) {
+        await updateUserProviderRecord(
+          {
+            providerUserId: googleProfile.providerUserId,
+            providerEmail: googleProfile.providerEmail,
+          },
+          tx,
+        );
+      }
+    } else {
+      const existingEmailUser = await findUserByEmailRecord({ email: googleProfile.email }, tx);
+
+      if (existingEmailUser && String(existingEmailUser.id) !== String(currentUserId)) {
+        throw new AppError({
+          debug: `Google email ${googleProfile.email} belongs to another user`,
+          type: ERROR_TYPES.AUTH,
+          message: ERROR_MESSAGES.AUTH_PROVIDER_ALREADY_LINKED,
+          statusCode: HTTP_STATUS.CONFLICT,
+          details: { fields: ['email'] },
+        });
+      }
+
+      await createUserProviderRecord(
+        {
+          userId: currentUserId,
+          providerId: provider.id,
+          providerUserId: googleProfile.providerUserId,
+          providerEmail: googleProfile.providerEmail,
+        },
+        tx,
+      );
+    }
+
+    if (googleProfile.avatarUrl) {
+      await updateUserAvatarIfMissingRecord(
+        {
+          userId: currentUserId,
+          avatarUrl: googleProfile.avatarUrl,
+        },
+        tx,
+      );
+    }
+
+    const refreshedUserRecord =
+      (await findUserByIdRecord({ userId: currentUserId }, tx)) ?? currentUser;
+
+    const responseUser = mapUserProfile({
+      ...refreshedUserRecord,
+      avatar_url: refreshedUserRecord.avatar_url ?? googleProfile.avatarUrl,
+    });
+
+    const sessionBundle = await createSessionBundle(
+      {
+        userId: currentUserId,
         userAgent,
         ip,
       },
